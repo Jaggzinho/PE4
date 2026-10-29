@@ -1,0 +1,32 @@
+data/
+
+# Local runtime state and secrets
+.env
+.env.*
+!.env.example
+*.duckdb.wal
+*.duckdb.backup
+*.duckdb
+*.bak
+uploads/
+logs/
+~$*
+temp prompts.txt
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Frontend dependencies and transient Vite output
+web/node_modules/
+web/.vite/
+web/dist/
+.codex-preview/
+.e2e/
+web/playwright-report/
+web/test-results/
+
+# Local packaging output
+/build/
+/dist/
