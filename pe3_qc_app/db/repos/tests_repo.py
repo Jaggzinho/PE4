@@ -446,6 +446,20 @@ def backfill_test_component_descriptions(con) -> int:
     One-time (idempotent) repair: fills missing component_desc in test_component_lots
     by binding component_code -> components.description.
     """
+    pending = con.execute(
+        """
+        SELECT count(*)
+        FROM test_component_lots tcl, components c
+        WHERE
+            tcl.component_code IS NOT NULL
+            AND TRIM(CAST(tcl.component_code AS VARCHAR)) <> ''
+            AND (tcl.component_desc IS NULL OR TRIM(CAST(tcl.component_desc AS VARCHAR)) = '')
+            AND c.code = tcl.component_code
+            AND c.description IS NOT NULL
+            AND TRIM(CAST(c.description AS VARCHAR)) <> ''
+        """
+    ).fetchone()
+    fixed = int(pending[0]) if pending is not None else 0
     con.execute(
         """
         UPDATE test_component_lots tcl
@@ -460,13 +474,7 @@ def backfill_test_component_descriptions(con) -> int:
             AND TRIM(CAST(c.description AS VARCHAR)) <> ''
         """
     )
-    try:
-        row = con.execute("SELECT changes()").fetchone()
-        if row is not None:
-            return int(row[0])
-    except Exception:
-        pass
-    return 0
+    return fixed
 
 
 def upsert_component_lot(

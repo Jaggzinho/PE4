@@ -41,7 +41,7 @@ def _save_upload(file: UploadFile, *, max_bytes: int) -> Path:
     try:
         return service.save_validated_upload(file, max_bytes=max_bytes)
     except WorkbookTooLargeError as exc:
-        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
     except InvalidWorkbookError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 

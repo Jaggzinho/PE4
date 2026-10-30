@@ -55,16 +55,45 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the local PE3 QC web application.")
     parser.add_argument("--db", type=Path, help="DuckDB file to use; defaults to data/pe3.duckdb.")
     parser.add_argument("--port", type=int, default=8000, help="Loopback port (default: 8000).")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help=(
+            "Bind address. Defaults to 127.0.0.1 (local only). Use 0.0.0.0 to serve "
+            "the local network; this is a deliberate, trusted-network-only choice."
+        ),
+    )
     parser.add_argument("--no-browser", action="store_true", help="Do not open the default browser.")
     return parser.parse_args(argv)
+
+
+def _lan_urls(port: int) -> list[str]:
+    """Best-effort LAN-facing URLs when binding beyond loopback."""
+    try:
+        hostnames = {socket.gethostname()}
+    except Exception:
+        return []
+    urls: list[str] = []
+    for name in sorted(hostnames):
+        try:
+            for info in socket.getaddrinfo(name, None, socket.AF_INET):
+                addr = info[4][0]
+                if addr and not addr.startswith("127."):
+                    url = f"http://{addr}:{port}"
+                    if url not in urls:
+                        urls.append(url)
+        except Exception:
+            continue
+    return urls
 
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     if not 1 <= args.port <= 65535:
         raise SystemExit("Port must be between 1 and 65535")
+    probe_host = "127.0.0.1" if args.host in ("0.0.0.0", "::") else args.host
     if not _port_available(args.port):
-        raise SystemExit(f"Port {args.port} is already in use on 127.0.0.1")
+        raise SystemExit(f"Port {args.port} is already in use on {probe_host}")
 
     root = _runtime_root()
     data_dir = root / "data"
@@ -97,21 +126,34 @@ def main(argv: list[str] | None = None) -> None:
     os.environ["PE3_STATIC_DIR"] = str(static_dir)
     if not os.getenv("PE3_JWT_SECRET"):
         os.environ["PE3_JWT_SECRET"] = _ensure_secret(data_dir / ".pe3-jwt-secret")
-    if not db_path.exists() and not os.getenv("PE3_SETUP_TOKEN"):
-        setup_path = data_dir / ".pe3-setup-token"
-        os.environ["PE3_SETUP_TOKEN"] = _ensure_secret(setup_path)
-        print(f"First-run setup token stored in: {setup_path}")
+    if not os.getenv("PE3_SETUP_TOKEN"):
+        setup_token_path = data_dir / ".pe3-setup-token"
+        if setup_token_path.is_file():
+            # Keep setup available across restarts until the first admin
+            # exists; the service still refuses once any user is created.
+            stored = setup_token_path.read_text(encoding="utf-8").strip()
+            if len(stored) >= 32:
+                os.environ["PE3_SETUP_TOKEN"] = stored
+        elif not db_path.exists():
+            os.environ["PE3_SETUP_TOKEN"] = _ensure_secret(setup_token_path)
+            print(f"First-run setup token stored in: {setup_token_path}")
 
     url = f"http://127.0.0.1:{args.port}"
     print(f"PE3 QC: {url}")
     print(f"Database: {db_path}")
-    if not args.no_browser:
+    lan = args.host not in ("127.0.0.1", "localhost", "::1")
+    if lan:
+        print("LAN bind requested; sharing this database over the network is intended "
+              "for a trusted local network only.")
+        for lan_url in _lan_urls(args.port):
+            print(f"LAN URL: {lan_url}")
+    if not args.no_browser and not lan:
         Thread(target=_open_browser_when_ready, args=(url,), daemon=True).start()
 
     uvicorn.run(
         "backend.app.main:create_app",
         factory=True,
-        host="127.0.0.1",
+        host=args.host,
         port=args.port,
         workers=1,
     )
