@@ -57,6 +57,28 @@ Optional arguments:
 .\run-web.cmd -Port 8010 -NoBrowser
 ```
 
+## Run as a Windows service (optional)
+
+The server can be wrapped in a Windows service with [NSSM](https://nssm.cc) so
+it starts at boot (no login required) and restarts automatically after a
+crash:
+
+```powershell
+nssm install PE3QC <python-exe> "-m backend.app.launcher --host 0.0.0.0 --port 8000 --no-browser"
+nssm set PE3QC AppDirectory <repo-root>
+nssm set PE3QC AppStdout <repo-root>\data\service-stdout.log
+nssm set PE3QC AppStderr <repo-root>\data\service-stderr.log
+nssm set PE3QC Start SERVICE_AUTO_START
+nssm start PE3QC
+```
+
+Manage it like any Windows service: `Start-Service PE3QC`,
+`Stop-Service PE3QC`, `Restart-Service PE3QC`. Remove the wrapper with
+`nssm remove PE3QC confirm`. The service runs as LOCAL SYSTEM by default,
+so the Outlook COM draft integration is unavailable while it runs this way
+and reverts to its regular recoverable error. `--host 0.0.0.0` shares the
+application over the trusted local network only.
+
 ## Development
 
 Use `run-dev.cmd` for the two-process Vite/FastAPI development setup. Vite
