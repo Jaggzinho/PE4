@@ -52,8 +52,8 @@ class TestRatingAggregation(unittest.TestCase):
             )
             # P1: values 100 and 100 -> avg 100, latest 100 -> pct_dist 0% -> 20/20 => 100%
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2001, 1001, 101, 100.0, NULL)")
-            # P2: latest 102
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2002, 1001, 102, 102.0, NULL)")
+            # P2: latest 140
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2002, 1001, 102, 140.0, NULL)")
 
             con.execute(
                 """
@@ -62,13 +62,13 @@ class TestRatingAggregation(unittest.TestCase):
                 """,
                 [date(2026, 4, 1), utc_now_naive()],
             )
-            # P2: earlier 98 -> avg becomes 100, latest is still 102 -> pct_dist = 2% -> 19/20 => 95%
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (1999, 1000, 102, 98.0, NULL)")
+            # P2: earlier 60 -> average 100, latest 140 is outside the 20% fallback band
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (1999, 1000, 102, 60.0, NULL)")
 
             upsert_weight(con, property_id=101, weight=1.0)
             upsert_weight(con, property_id=102, weight=3.0)
 
-            # Points based on percent distance from avg.
+            # Legacy rules remain readable; runtime uses the fixed 20% fallback.
             upsert_rule(
                 con,
                 property_id=101,
@@ -90,7 +90,7 @@ class TestRatingAggregation(unittest.TestCase):
 
             r = compute_material_rating(con, material_id=10)
             self.assertIsNotNone(r)
-            self.assertAlmostEqual(float(r), 96.25, places=6)
+            self.assertAlmostEqual(float(r), 25.0, places=6)
 
             # Missing measurement excludes from denominator.
             con.execute("DELETE FROM measurements WHERE property_id = 102")
@@ -99,13 +99,13 @@ class TestRatingAggregation(unittest.TestCase):
             self.assertAlmostEqual(float(r2), 100.0, places=6)
 
             # Weight=0 excludes property even if measurement+rule exist.
-            # Restore a second measurement so avg != latest (98 and 102 => avg 100).
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (3001, 1000, 102, 98.0, NULL)")
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (3002, 1001, 102, 102.0, NULL)")
+            # Restore measurements outside the fallback band (60 and 140 => average 100).
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (3001, 1000, 102, 60.0, NULL)")
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (3002, 1001, 102, 140.0, NULL)")
             upsert_weight(con, property_id=101, weight=0.0)
             r3 = compute_material_rating(con, material_id=10)
             self.assertIsNotNone(r3)
-            self.assertAlmostEqual(float(r3), 95.0, places=6)
+            self.assertAlmostEqual(float(r3), 0.0, places=6)
         finally:
             con.close()
 

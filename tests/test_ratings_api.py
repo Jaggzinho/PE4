@@ -53,7 +53,7 @@ def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True):
             [property_id],
         )
         for index, (prod_date, value) in enumerate(
-            ((date(2026, 4, 2), 100.0), (date(2026, 4, 11), 100.0), (date(2026, 4, 21), 130.0)),
+            ((date(2026, 4, 2), 100.0), (date(2026, 4, 11), 100.0), (date(2026, 4, 21), 160.0)),
             start=1,
         ):
             test_id = int(new_id())
@@ -171,7 +171,7 @@ def test_custom_material_tolerance_recalculates_all_rating_views(tmp_path, monke
         property_id = int(con.execute("SELECT property_id FROM properties WHERE name='Rating property'").fetchone()[0])
         saved = MasterDataService().save_tolerance(con, tolerance_id=None, payload=ToleranceUpsertRequest(
             material_id=material_id, property_id=property_id, reference_value=100,
-            warn_low_input=90, warn_high_input=110, alarm_low_input=80, alarm_high_input=150,
+            warn_low_input=90, warn_high_input=110, alarm_low_input=80, alarm_high_input=210,
         ))
     response = client.get(f"/api/ratings?material_id={material_id}", headers=headers)
     assert response.status_code == 200
@@ -201,7 +201,7 @@ def test_saved_tolerance_with_weight_can_rate_without_fallback_rule(tmp_path, mo
         upsert_weight(con, property_id=property_id, weight=1)
         MasterDataService().save_tolerance(con, tolerance_id=None, payload=ToleranceUpsertRequest(
             material_id=material_id, property_id=property_id, reference_value=100,
-            warn_high_input=110, alarm_high_input=150, alarm_low_input=80,
+            warn_high_input=110, alarm_high_input=210, alarm_low_input=80,
         ))
     client = TestClient(app)
     response = client.get(f"/api/ratings?material_id={material_id}", headers=_viewer_headers(client))
@@ -220,8 +220,56 @@ def test_generated_chart_fallback_does_not_replace_rating_rule(tmp_path, monkeyp
     with app.state.pe3_state.db.serialized() as con:
         property_id = int(con.execute("SELECT property_id FROM properties WHERE name='Rating property'").fetchone()[0])
         ensure_material_tolerance(con, material_id=material_id, property_id=property_id,
-                                  warn_low=None, warn_high=None, alarm_low=80, alarm_high=150)
+                                  warn_low=None, warn_high=None, alarm_low=80, alarm_high=210)
     client = TestClient(app)
     response = client.get(f"/api/ratings?material_id={material_id}", headers=_viewer_headers(client))
     assert response.status_code == 200
     assert [point["rating_percent"] for point in response.json()["points"]] == pytest.approx([100, 100, 0])
+
+
+def test_configured_tolerance_points_are_shared_by_all_rating_consumers(tmp_path, monkeypatch):
+    from pe3_qc_app.services.test_rating_service import compute_test_ratings
+
+    app, material_id, _ = _app_with_ratings(tmp_path, monkeypatch)
+    with app.state.pe3_state.db.write() as con:
+        property_id = int(con.execute("SELECT property_id FROM properties WHERE name='Rating property'").fetchone()[0])
+        upsert_rule(con, property_id=property_id, rule_json={
+            "type": "custom_tolerance_points_v1", "max_points": 10,
+            "warn_low_points": 10, "warn_high_points": 10,
+            "alarm_low_points": 10, "alarm_high_points": 10,
+        })
+        # Property default fails the latest measurement; material-specific limits win.
+        MasterDataService().save_tolerance(con, tolerance_id=None, payload=ToleranceUpsertRequest(
+            property_id=property_id, reference_value=100, alarm_low_input=90, alarm_high_input=110,
+        ))
+        saved = MasterDataService().save_tolerance(con, tolerance_id=None, payload=ToleranceUpsertRequest(
+            material_id=material_id, property_id=property_id, reference_value=100,
+            warn_low_input=95, warn_high_input=105, alarm_low_input=80, alarm_high_input=160,
+        ))
+    client = TestClient(app)
+    headers = _viewer_headers(client)
+    overview = client.get(f"/api/ratings?material_id={material_id}", headers=headers).json()
+    assert [row["rating_percent"] for row in overview["points"]] == [100, 100, 100]
+    assert overview["latest_rating"] == overview["average_rating"] == 100
+    calendar = client.get("/api/calendar?year=2026&month=4", headers=headers).json()
+    assert [row["rating_percent"] for row in calendar["items"]] == [100, 100, 100]
+    with app.state.pe3_state.db.connect() as con:
+        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id=? ORDER BY prod_date", [material_id]).fetchall()
+        assert list(compute_test_ratings(con, tests=pairs).values()) == [100, 100, 100]
+        assert compute_material_rating(con, material_id=material_id) == 100
+        assert compute_average_ratings_for_materials(con, material_ids=[material_id])[material_id] == 100
+    with app.state.pe3_state.db.write() as con:
+        MasterDataService().delete_tolerance(con, tolerance_id=saved.tolerance_id)
+    default = client.get(f"/api/ratings?material_id={material_id}", headers=headers).json()
+    assert [row["rating_percent"] for row in default["points"]] == [100, 100, 0]
+
+
+def test_positive_weight_enables_fallback_without_saved_rule(tmp_path, monkeypatch):
+    app, material_id, _ = _app_with_ratings(tmp_path, monkeypatch, configured=False)
+    with app.state.pe3_state.db.write() as con:
+        property_id = int(con.execute("SELECT property_id FROM properties WHERE name='Rating property'").fetchone()[0])
+        upsert_weight(con, property_id=property_id, weight=1)
+    client = TestClient(app)
+    result = client.get(f"/api/ratings?material_id={material_id}", headers=_viewer_headers(client)).json()
+    assert result["configured"] is True
+    assert [row["rating_percent"] for row in result["points"]] == [100, 100, 0]

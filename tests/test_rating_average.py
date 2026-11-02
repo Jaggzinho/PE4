@@ -95,7 +95,7 @@ class TestRatingAverage(unittest.TestCase):
 
             # Test 1001 values (P2 far)
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2010, 1001, 101, 100.0, NULL)")
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2011, 1001, 102, 130.0, NULL)")
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2011, 1001, 102, 200.0, NULL)")
 
             # Deleted test 1002 (should be ignored)
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2020, 1002, 101, 100.0, NULL)")
@@ -108,19 +108,8 @@ class TestRatingAverage(unittest.TestCase):
             self.assertIn(10, res)
             avg = float(res[10])
 
-            # Compute expected:
-            # All-time averages per property across non-deleted tests (1000,1001,1003):
-            # P1 avg = 100
-            # P2 avg = (100 + 130) / 2 = 115
-            # Test 1000:
-            #  - P1 pct_dist 0 -> 100%
-            #  - P2 pct_dist |100-115|/115*100 ~ 13.04% -> 0%
-            #  => (100 + 0)/2 = 50
-            # Test 1001:
-            #  - P1 pct_dist 0 -> 100%
-            #  - P2 pct_dist |130-115|/115*100 ~ 13.04% -> 0%
-            #  => (100 + 0)/2 = 50
-            # Average across tests = 50
+            # P1 is perfect; P2 values 100 and 200 are outside +/-20% of average 150.
+            # Both contributing tests score (100 + 0) / 2 = 50.
             self.assertAlmostEqual(avg, 50.0, places=6)
         finally:
             con.close()

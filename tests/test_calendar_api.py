@@ -50,7 +50,7 @@ def _calendar_app(tmp_path, monkeypatch):
             },
         )
         for index, (prod_date, value) in enumerate(
-            ((date(2026, 4, 2), 100.0), (date(2026, 4, 11), 100.0), (date(2026, 4, 21), 130.0)),
+            ((date(2026, 4, 2), 100.0), (date(2026, 4, 11), 100.0), (date(2026, 4, 21), 160.0)),
             start=1,
         ):
             test_id = int(new_id())
@@ -139,7 +139,7 @@ def test_calendar_qc_failure_details_and_missing_test(tmp_path, monkeypatch):
     assert body["test_id"] == str(test_ids[-1])
     assert body["material_code"] == "CAL-001"
     assert body["request_date"] == "2026-04-21"
-    assert body["failures"] == [{"property_name": "Calendar property", "actual_value": "130.0"}]
+    assert body["failures"] == [{"property_name": "Calendar property", "actual_value": "160.0"}]
 
     missing = client.get("/api/calendar/tests/999999999/failures", headers=headers)
     assert missing.status_code == 404

@@ -790,6 +790,31 @@ def test_settings_rating_rule_validates_band_semantics(tmp_path):
     assert next(row for row in refreshed if row["property_id"] == property_id)["rule_json"] == rule_json
 
 
+def test_tolerance_point_rule_permissions_validation_and_persistence(tmp_path):
+    import json
+
+    client = _client(tmp_path)
+    headers = {"Authorization": f"Bearer {_auth(client)}"}
+    property_id = client.get("/api/settings/ratings", headers=headers).json()[0]["property_id"]
+    endpoint = f"/api/settings/ratings/{property_id}/rule"
+    rule = {
+        "type": "custom_tolerance_points_v1", "max_points": 10,
+        "warn_low_points": 10, "warn_high_points": 10,
+        "alarm_low_points": 10, "alarm_high_points": 10,
+    }
+    payload = {"rule_json": json.dumps(rule)}
+    assert client.put(endpoint, json=payload).status_code == 401
+    viewer = client.post("/api/auth/login", json={"username": "viewer", "password": "pw"}).json()["access_token"]
+    assert client.put(endpoint, json=payload, headers={"Authorization": f"Bearer {viewer}"}).status_code == 403
+    assert client.put(endpoint, json=payload, headers=headers).status_code == 204
+    for changes in ({"alarm_high_points": 11}, {"max_points": 0}, {"warn_low_points": None}, {"alarm_low_points": {}}, {"warn_high_points": -1}):
+        response = client.put(endpoint, json={"rule_json": json.dumps({**rule, **changes})}, headers=headers)
+        assert response.status_code == 400
+        assert response.json()["code"] == "bad_request"
+    refreshed = client.get("/api/settings/ratings", headers=headers).json()
+    assert json.loads(next(row for row in refreshed if row["property_id"] == property_id)["rule_json"]) == rule
+
+
 def test_master_data_and_settings_are_backend_authorized(tmp_path):
     client = _client(tmp_path)
     login = client.post("/api/auth/login", json={"username": "viewer", "password": "pw"})

@@ -31,6 +31,7 @@ function ModalFrame({ children, onClose }: { children: ReactNode; onClose: () =>
       style={{
         position: "fixed",
         inset: 0,
+        zIndex: 1000,
         background: "rgba(0,0,0,0.6)",
         display: "flex",
         alignItems: "center",
@@ -46,7 +47,7 @@ function ModalFrame({ children, onClose }: { children: ReactNode; onClose: () =>
         aria-label="Edit details"
         tabIndex={-1}
         className="card"
-        style={{ width: "min(980px, 95vw)", maxHeight: "90vh", overflow: "auto" }}
+        style={{ width: "min(980px, 95vw)", maxHeight: "90vh", overflow: "auto", background: "var(--panel)" }}
         onClick={(event) => event.stopPropagation()}
       >
         {children}

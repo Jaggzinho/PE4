@@ -4,6 +4,14 @@ import type { ChartsTolerancePct } from "./charts";
 
 export type Thresholds = { green_days: number; yellow_days: number };
 export type RatingRow = { property_id: ApiId; property_name: string; unit: string | null; weight: number; rule_json: string | null };
+export type TolerancePointsRule = {
+  type: "custom_tolerance_points_v1";
+  max_points: number;
+  warn_low_points: number;
+  warn_high_points: number;
+  alarm_low_points: number;
+  alarm_high_points: number;
+};
 export type Role = { role_id: ApiId; name: string; can_edit_master: boolean; can_edit_tests: boolean; can_manage_users: boolean; can_send_outlook: boolean };
 export type User = { user_id: ApiId; username: string; role_id: ApiId; role_name: string; active: boolean; created_at: string; last_login_at: string | null };
 export type DatabaseSource = { active_path: string; active_source: string; configured_next_path: string | null; restart_required: boolean; override_active: boolean };

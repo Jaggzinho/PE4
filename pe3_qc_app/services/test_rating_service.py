@@ -37,9 +37,6 @@ def compute_test_ratings(
         except Exception:
             continue
     tolerances = _rating_tolerances(con, material_ids=material_ids, property_ids=prop_ids)
-    prop_ids = [pid for pid in prop_ids if pid in parsed_rules or any(key[1] == pid for key in tolerances)]
-    if not prop_ids:
-        return {}
 
     avgs = fetch_avg_numeric_measurements(con, material_ids=material_ids, property_ids=prop_ids)
     avg_map: dict[tuple[int, int], float] = {(int(mid), int(pid)): float(a) for mid, pid, a in avgs if a is not None}

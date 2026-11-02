@@ -93,7 +93,7 @@ class TestRatingSeries(unittest.TestCase):
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2001, 1001, 101, 100.0, NULL)")
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2002, 1002, 101, 100.0, NULL)")
 
-            # P2 values: 100, 100, 104 -> avg ~101.333, last is ~2.63% away -> rule gives 0 for P2 on last test.
+            # P2 values: 100, 100, 104 -> average ~101.333; all lie inside the 20% fallback band.
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2100, 1000, 102, 100.0, NULL)")
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2101, 1001, 102, 100.0, NULL)")
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2102, 1002, 102, 104.0, NULL)")

@@ -55,7 +55,7 @@ class TestRatingLatestMeasurementPolicy(unittest.TestCase):
             )
 
             # Create 3 tests so avg is stable and known.
-            # Values: 100, 110, 90 => avg = 100.
+            # Values: 100, 150, 50 => avg = 100.
 
             # test_id 1001 has later request_date, but no analysis_date (value=100).
             con.execute(
@@ -67,7 +67,7 @@ class TestRatingLatestMeasurementPolicy(unittest.TestCase):
             )
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2001, 1001, 101, 100.0, NULL)")
 
-            # test_id 1002 has earlier request_date but later analysis_date -> should win by COALESCE (value=110).
+            # test_id 1002 has earlier request_date but later analysis_date -> should win by COALESCE (value=150).
             con.execute(
                 """
                 INSERT INTO tests(test_id, material_id, request_date, prod_date, analysis_date, notes, created_by, created_at, deleted_at, external_source, external_row_key)
@@ -75,9 +75,9 @@ class TestRatingLatestMeasurementPolicy(unittest.TestCase):
                 """,
                 [date(2026, 4, 1), date(2026, 4, 20), utc_now_naive()],
             )
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2002, 1002, 101, 110.0, NULL)")
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2002, 1002, 101, 150.0, NULL)")
 
-            # Older test for avg stability (value=90).
+            # Older test for avg stability (value=50).
             con.execute(
                 """
                 INSERT INTO tests(test_id, material_id, request_date, prod_date, analysis_date, notes, created_by, created_at, deleted_at, external_source, external_row_key)
@@ -85,11 +85,11 @@ class TestRatingLatestMeasurementPolicy(unittest.TestCase):
                 """,
                 [date(2026, 3, 1), utc_now_naive()],
             )
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (9001, 900, 101, 90.0, NULL)")
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (9001, 900, 101, 50.0, NULL)")
 
             r = compute_material_rating(con, material_id=10)
             self.assertIsNotNone(r)
-            # Latest should be value=110 (avg=100 => 10% dist => 0 points => 0%).
+            # Latest should be value=150 (avg=100 => 50% dist => 0 points => 0%).
             self.assertAlmostEqual(float(r), 0.0, places=6)
 
             # Same COALESCE date, higher test_id wins (value=100 => 0% dist => 100%).
@@ -106,8 +106,8 @@ class TestRatingLatestMeasurementPolicy(unittest.TestCase):
             self.assertIsNotNone(r2)
             self.assertAlmostEqual(float(r2), 100.0, places=6)
 
-            # Within a test, higher measurement_id wins (overwrite latest test's value to 110 => 0%).
-            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2004, 1003, 101, 110.0, NULL)")
+            # Within a test, higher measurement_id wins (overwrite latest test's value to 150 => 0%).
+            con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (2004, 1003, 101, 150.0, NULL)")
             r3 = compute_material_rating(con, material_id=10)
             self.assertIsNotNone(r3)
             self.assertAlmostEqual(float(r3), 0.0, places=6)

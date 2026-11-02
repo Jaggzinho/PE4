@@ -186,7 +186,7 @@ export default function RatingsPage() {
       {busy && !data && <LoadingNotice>Loading ratings…</LoadingNotice>}
       {!materialsQuery.isPending && !materialId && <EmptyNotice>Select a material to load ratings.</EmptyNotice>}
       {data && !data.configured && (
-        <EmptyNotice>No rating rule or saved tolerance has a positive property weight.</EmptyNotice>
+        <EmptyNotice>No property has a positive rating weight. Set a weight in Application settings to enable ratings.</EmptyNotice>
       )}
       {data?.configured && !busy && !points.length && (
         <EmptyNotice>No rated tests are available for this date range.</EmptyNotice>

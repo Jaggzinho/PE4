@@ -114,8 +114,14 @@ test.describe.serial("built PE3 workflows", () => {
     await page.locator("tbody").getByRole("button", { name: "Edit…" }).first().click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("button", { name: "Clear" }).click();
-    await dialog.getByLabel("Max points").fill("23");
-    await dialog.getByLabel("Points for band 1").fill("7");
+    await dialog.getByLabel("Max points", { exact: true }).fill("10");
+    for (const label of ["Warn min points", "Warn max points", "Alarm min points", "Alarm max points"]) {
+      await dialog.getByLabel(label).fill("10");
+    }
+    await dialog.getByLabel("Alarm max points").fill("11");
+    await expect(dialog.getByRole("button", { name: "Save", exact: true })).toBeDisabled();
+    await expect(dialog.getByRole("alert")).toContainText("between 0 and 10");
+    await dialog.getByLabel("Alarm max points").fill("10");
 
     const saveResponse = page.waitForResponse((response) =>
       response.request().method() === "PUT" && /\/api\/settings\/ratings\/\d+\/rule$/.test(response.url()),
@@ -129,7 +135,10 @@ test.describe.serial("built PE3 workflows", () => {
     await page.getByRole("button", { name: "Ratings", exact: true }).click();
     await page.locator("tbody").getByRole("button", { name: "Edit…" }).first().click();
     const savedDialog = page.getByRole("dialog");
-    await expect(savedDialog.getByLabel("Max points")).toHaveValue("23");
-    await expect(savedDialog.getByLabel("Points for band 1")).toHaveValue("7");
+    await expect(savedDialog.getByLabel("Max points", { exact: true })).toHaveValue("10");
+    for (const label of ["Warn min points", "Warn max points", "Alarm min points", "Alarm max points"]) {
+      await expect(savedDialog.getByLabel(label)).toHaveValue("10");
+    }
+    await page.screenshot({ path: "test-results/rating-tolerance-editor.png", fullPage: true });
   });
 });
