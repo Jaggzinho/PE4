@@ -49,6 +49,12 @@ def _resolved_tolerance(payload) -> tuple[dict, dict]:
                 raise ToleranceValidationError("Percentage deviations must be nonnegative.")
             delta = abs(reference) * value / 100.0
             result = reference - delta if bound.endswith("low") else reference + delta
+        elif mode == "offset" and value is not None:
+            if reference is None:
+                raise ToleranceValidationError("A reference is required for numeric deviations.")
+            if value < 0:
+                raise ToleranceValidationError("Numeric deviations must be nonnegative.")
+            result = reference - value if bound.endswith("low") else reference + value
         else:
             result = value
         if result is not None and not math.isfinite(result):

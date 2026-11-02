@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { qcHref } from "../features/qcLinks";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   createLot,
   deleteLot,
@@ -444,7 +443,7 @@ export default function LotsPage() {
         </div>
       )}
 
-      <div style={{ overflowX: "auto" }}>
+      <div className="lots-table-scroll">
         <table className="table lots-results-table">
           <thead>
             <tr>
@@ -461,7 +460,7 @@ export default function LotsPage() {
               {QC_FIELDS.filter((f) => visibleColumns.has(f.key)).map((f) => (
                 <SortHeader key={f.key} label={f.label} sortKey={f.key} current={sortBy} direction={sortDir} onSort={changeSort} />
               ))}
-              <th />
+              <th className="lots-actions" scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -484,13 +483,10 @@ export default function LotsPage() {
                 {visibleColumns.has("lacerazione_ca") && <td>{r.lacerazione_ca || "—"}</td>}
                 {visibleColumns.has("abrasione") && <td>{r.abrasione || "—"}</td>}
                 {visibleColumns.has("resistivita_superficiale") && <td>{r.resistivita_superficiale || "—"}</td>}
-                <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                <td className="lots-actions">
                   <button className="btn" disabled={busy} onClick={() => setSelection("test_id", r.test_id)}>
                     View
                   </button>{" "}
-                  <Link to={qcHref("charts", { materialId: r.material_id })}>Charts</Link>{" · "}
-                  <Link to={qcHref("ratings", { materialId: r.material_id })}>Ratings</Link>{" · "}
-                  <Link to={qcHref("calendar", { materialId: r.material_id, testId: r.test_id, prodDate: r.prod_date })}>Calendar</Link>{" "}
                   <button className="btn danger" disabled={busy || !canEdit} onClick={() => onDelete(r.test_id)}>
                     Delete
                   </button>
@@ -525,6 +521,7 @@ export default function LotsPage() {
           style={{
             position: "fixed",
             inset: 0,
+            zIndex: 1000,
             background: "rgba(0,0,0,0.6)",
             display: "flex",
             alignItems: "center",

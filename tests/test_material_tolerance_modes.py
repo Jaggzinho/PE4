@@ -4,6 +4,7 @@ import os
 import shutil
 
 import duckdb
+import pytest
 
 from backend.app.schemas.master_data import ToleranceUpsertRequest
 from backend.app.services.master_data import MasterDataService
@@ -68,7 +69,8 @@ def test_v12_reference_limit_is_recognized_as_custom_on_upgrade(tmp_path):
     con.close()
 
 
-def test_reference_percent_and_numeric_limits_round_trip(tmp_path):
+@pytest.mark.parametrize("high_mode,warn_high,alarm_high", [("absolute", 108, 115), ("offset", 8, 15)])
+def test_reference_percent_and_numeric_limits_round_trip(tmp_path, high_mode, warn_high, alarm_high):
     client = _client(tmp_path)
     token = client.post("/api/auth/login", json={"username": "admin", "password": "pw"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
@@ -84,15 +86,17 @@ def test_reference_percent_and_numeric_limits_round_trip(tmp_path):
     payload = {
         "material_id": material_id, "property_id": 10, "reference_value": 100,
         "warn_low_input": 5, "warn_low_mode": "percent",
-        "warn_high_input": 108, "warn_high_mode": "absolute",
+        "warn_high_input": warn_high, "warn_high_mode": high_mode,
         "alarm_low_input": 10, "alarm_low_mode": "percent",
-        "alarm_high_input": 115, "alarm_high_mode": "absolute",
+        "alarm_high_input": alarm_high, "alarm_high_mode": high_mode,
     }
     saved = client.post("/api/master-data/tolerances", json=payload, headers=headers)
     assert saved.status_code == 200, saved.text
     row = saved.json()
     assert (row["warn_low"], row["warn_high"], row["alarm_low"], row["alarm_high"]) == (95, 108, 90, 115)
     assert row["warn_low_input"] == 5
+    assert row["warn_high_input"] == warn_high
+    assert row["warn_high_mode"] == high_mode
     assert client.get("/api/master-data/tolerances", headers=headers).json()[0]["reference_value"] == 100
     duplicate = client.post("/api/master-data/tolerances", json=payload, headers=headers)
     assert duplicate.status_code == 422

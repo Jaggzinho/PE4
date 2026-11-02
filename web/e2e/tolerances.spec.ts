@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+test.use({ video: "off" });
+
 test("material tolerance editor and chart smoothing", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Username").fill("admin");
@@ -11,7 +13,9 @@ test("material tolerance editor and chart smoothing", async ({ page }) => {
   await page.getByRole("button", { name: "Tolerances" }).click();
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Material").selectOption({ label: "MAT-001" });
+  const material = dialog.getByLabel("Material");
+  const materialId = await material.getByRole("option", { name: /^MAT-001(?:\s|$)/ }).getAttribute("value");
+  await material.selectOption(materialId!);
   await dialog.getByLabel("Reference value").fill("100");
   await dialog.getByLabel("warn low", { exact: true }).fill("5");
   await dialog.getByLabel("warn low unit").selectOption("percent");
@@ -22,6 +26,19 @@ test("material tolerance editor and chart smoothing", async ({ page }) => {
   await dialog.getByRole("button", { name: "Save" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator("tbody tr").first()).toContainText("95 (5%)");
+
+  await page.locator("tbody tr").first().getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(dialog.getByLabel("alarm high", { exact: true })).toHaveValue("115");
+  await expect(dialog.getByLabel("alarm high unit")).toHaveValue("absolute");
+  await dialog.getByLabel("alarm high unit").selectOption("offset");
+  await dialog.getByLabel("alarm high", { exact: true }).fill("15");
+  await expect(dialog.getByText("Effective: 115")).toBeVisible();
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.locator("tbody tr").first().getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(dialog.getByLabel("alarm high", { exact: true })).toHaveValue("15");
+  await expect(dialog.getByLabel("alarm high unit")).toHaveValue("offset");
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
 
   await page.getByRole("link", { name: "Charts", exact: true }).click();
   await page.getByLabel("Chart material").selectOption({ index: 1 });

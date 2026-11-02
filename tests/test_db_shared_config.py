@@ -44,7 +44,7 @@ class TestDbSharedConfig(unittest.TestCase):
             ):
                 p = local_config.get_config_dir()
                 self.assertTrue(str(p).lower().endswith("\\pe3"))
-                self.assertIn(str(localappdata).lower(), str(p).lower())
+                self.assertEqual(p.resolve(), (localappdata / "PE3").resolve())
 
     def test_resolve_paths_precedence_cli_over_config(self) -> None:
         with tempfile.TemporaryDirectory() as td:

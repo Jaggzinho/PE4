@@ -63,16 +63,24 @@ def _score_measurement(
         return None
     tolerance = tolerances.get((material_id, property_id)) or tolerances.get((None, property_id))
     if tolerance is not None:
-        score = _tolerance_score(value, tolerance, avg)
-        if score is not None:
-            return score
+        # Explicit QC limits take precedence; a reference alone anchors band rules.
+        if any(getattr(tolerance, bound) is not None for bound in ("warn_low", "warn_high", "alarm_low", "alarm_high")):
+            score = _tolerance_score(value, tolerance, avg)
+            if score is not None:
+                return score
         if tolerance.reference_value is not None:
             avg = tolerance.reference_value
     rule = rules.get(property_id)
-    if rule is None or avg is None or not math.isfinite(avg) or abs(avg) < EPSILON_AVG:
+    if rule is None or avg is None or not math.isfinite(avg):
         return None
-    points = _points_for_pct_dist(rule, abs(value - avg) / abs(avg) * 100.0)
+    if not rule.absolute_distance and abs(avg) < EPSILON_AVG:
+        return None
+    distance = abs(value - avg)
+    if not rule.absolute_distance:
+        distance = distance / abs(avg) * 100.0
+    points = _points_for_pct_dist(rule, distance)
     return None if points is None else float(points) / float(rule.max_points) * 100.0
+
 
 
 @dataclass(frozen=True)
@@ -85,6 +93,7 @@ class _BandRule:
 class ParsedPctFromAvgBandsRule:
     bands: list[_BandRule]
     max_points: float
+    absolute_distance: bool = False
 
 
 def _parse_rule(rule_json: str) -> ParsedPctFromAvgBandsRule:
@@ -119,7 +128,7 @@ def _parse_rule(rule_json: str) -> ParsedPctFromAvgBandsRule:
         }
         rtype = "pct_from_avg_bands_v1"
 
-    if rtype != "pct_from_avg_bands_v1":
+    if rtype not in ("pct_from_avg_bands_v1", "absolute_from_reference_bands_v1"):
         raise ValueError("Unsupported rule type.")
     bands = data.get("bands")
     if not isinstance(bands, list) or not bands:
@@ -161,7 +170,17 @@ def _parse_rule(rule_json: str) -> ParsedPctFromAvgBandsRule:
     return ParsedPctFromAvgBandsRule(
         bands=[*finite_sorted, *nulls],
         max_points=max_points_f,
+        absolute_distance=rtype == "absolute_from_reference_bands_v1",
     )
+
+
+def _property_rule(con, property_id: int, rule_json: str) -> ParsedPctFromAvgBandsRule:
+    from dataclasses import replace
+    rule = _parse_rule(rule_json)
+    row = con.execute("SELECT name FROM properties WHERE property_id = ?", [property_id]).fetchone()
+    if row and str(row[0]).strip().casefold() == "durezza":
+        rule = replace(rule, absolute_distance=True)
+    return rule
 
 
 def score_value(rule_json: str, value_num: float) -> float | None:
@@ -208,7 +227,7 @@ def compute_ratings_for_materials(con, *, material_ids: list[int]) -> dict[int, 
     parsed_rules: dict[int, ParsedPctFromAvgBandsRule] = {}
     for pid in prop_ids:
         try:
-            parsed_rules[pid] = _parse_rule(rules[pid])
+            parsed_rules[pid] = _property_rule(con, pid, rules[pid])
         except Exception:
             continue
 
@@ -280,7 +299,7 @@ def fetch_rating_series(
     parsed_rules: dict[int, ParsedPctFromAvgBandsRule] = {}
     for pid in prop_ids:
         try:
-            parsed_rules[int(pid)] = _parse_rule(rules[int(pid)])
+            parsed_rules[int(pid)] = _property_rule(con, int(pid), rules[int(pid)])
         except Exception:
             continue
     tolerances = _rating_tolerances(con, material_ids=[mid], property_ids=prop_ids)
@@ -373,7 +392,7 @@ def has_rating_configuration(con, *, material_id: int | None = None) -> bool:
         return False
     for pid in prop_ids:
         try:
-            _parse_rule(rules[int(pid)])
+            _property_rule(con, int(pid), rules[int(pid)])
             return True
         except Exception:
             continue
@@ -406,7 +425,7 @@ def compute_average_ratings_for_materials(con, *, material_ids: list[int]) -> di
     parsed_rules: dict[int, ParsedPctFromAvgBandsRule] = {}
     for pid in prop_ids:
         try:
-            parsed_rules[int(pid)] = _parse_rule(rules[int(pid)])
+            parsed_rules[int(pid)] = _property_rule(con, int(pid), rules[int(pid)])
         except Exception:
             continue
     tolerances = _rating_tolerances(con, material_ids=mids, property_ids=prop_ids)

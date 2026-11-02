@@ -208,6 +208,11 @@ def test_saved_tolerance_with_weight_can_rate_without_fallback_rule(tmp_path, mo
     assert response.status_code == 200
     assert response.json()["configured"] is True
     assert [point["rating_percent"] for point in response.json()["points"]] == pytest.approx([100, 100, 50])
+    from pe3_qc_app.services.test_rating_service import compute_test_ratings
+    with app.state.pe3_state.db.connect() as con:
+        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id = ? ORDER BY prod_date", [material_id]).fetchall()
+        ratings = compute_test_ratings(con, tests=pairs)
+        assert [ratings[tid] for tid, _ in pairs] == pytest.approx([100, 100, 50])
 
 
 def test_generated_chart_fallback_does_not_replace_rating_rule(tmp_path, monkeypatch):

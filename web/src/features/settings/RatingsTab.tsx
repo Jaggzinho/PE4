@@ -33,14 +33,14 @@ function loadRule(ruleJson: string | null): RuleDraft {
     const ranges = Array.isArray(rule.ranges) ? rule.ranges : [];
     return { maxPoints: String(numericOrDefault(rule.max_points, 20)), bands: ranges.length ? ranges.map((entry) => { const r = objectValue(entry); return band(r.max, r.points); }) : [band()] };
   }
-  if (rule.type === "pct_from_avg_bands_v1") {
+  if ((rule.type === "pct_from_avg_bands_v1" || rule.type === "absolute_from_reference_bands_v1")) {
     const bands = Array.isArray(rule.bands) ? rule.bands : [];
     return { maxPoints: String(numericOrDefault(rule.max_points, 20)), bands: bands.length ? bands.map((entry) => { const r = objectValue(entry); return band(r.max_pct, r.points); }) : [band()] };
   }
   return { maxPoints: "20", bands: [band()] };
 }
 
-function serializeRule(draft: RuleDraft): { ruleJson: string; error: string } {
+function serializeRule(draft: RuleDraft, absolute = false): { ruleJson: string; error: string } {
   const maxPoints = Number(draft.maxPoints);
   if (!Number.isInteger(maxPoints) || maxPoints < 1 || maxPoints > 1_000_000) return { ruleJson: "", error: "Max points must be a whole number from 1 to 1,000,000." };
   if (!draft.bands.length) return { ruleJson: "", error: "Add at least one tolerance band." };
@@ -67,7 +67,7 @@ function serializeRule(draft: RuleDraft): { ruleJson: string; error: string } {
     if (points < 0 || points > maxPoints) return { ruleJson: "", error: `${label} points must be between 0 and ${maxPoints}.` };
     bands.push({ max_pct: maxPct, points });
   }
-  return { ruleJson: JSON.stringify({ type: "pct_from_avg_bands_v1", bands, max_points: maxPoints }), error: "" };
+  return { ruleJson: JSON.stringify({ type: absolute ? "absolute_from_reference_bands_v1" : "pct_from_avg_bands_v1", bands, max_points: maxPoints }), error: "" };
 }
 
 function WeightField({ row, busy, onWork }: { row: RatingRow; busy: boolean; onWork: (fn: () => Promise<void>) => void }) {
@@ -80,7 +80,8 @@ function WeightField({ row, busy, onWork }: { row: RatingRow; busy: boolean; onW
 function RuleEditor({ row, busy, onCancel, onSave }: { row: RatingRow; busy: boolean; onCancel: () => void; onSave: (ruleJson: string) => void }) {
   const [draft, setDraft] = useState<RuleDraft>(() => loadRule(row.rule_json));
   const [selected, setSelected] = useState<number | null>(null);
-  const result = useMemo(() => serializeRule(draft), [draft]);
+  const absolute = row.property_name.trim().toLowerCase() === "durezza";
+  const result = useMemo(() => { const r = serializeRule(draft, absolute); return absolute ? { ...r, error: r.error.replaceAll("Max %", "Max distance") } : r; }, [draft, absolute]);
   const changeBand = (id: number, field: "maxPct" | "points", value: string) => setDraft((current) => ({ ...current, bands: current.bands.map((item) => item.id === id ? { ...item, [field]: value } : item) }));
   const removeBand = () => {
     setDraft((current) => { const target = selected ?? current.bands.at(-1)?.id; return { ...current, bands: current.bands.filter((item) => item.id !== target) }; });
@@ -88,11 +89,11 @@ function RuleEditor({ row, busy, onCancel, onSave }: { row: RatingRow; busy: boo
   };
   return <>
     <div className="row"><h3 style={{ margin: 0 }}>Rating rule - {row.property_name}</h3></div>
-    <p className="muted">Fallback rule when a material/property has no saved tolerance: define % distance-from-average bands → points. Leave Max % empty for the catch-all band.</p>
+    <p className="muted">Bands use {absolute ? "absolute distance in hardness units" : "percentage distance"} from the custom reference, or the material average when no reference is set. Leave the maximum empty for the catch-all band.</p>
     <div className="row" style={{ justifyContent: "center", marginBottom: 12 }}><label className="row" style={{ gap: 8 }}><span>Max points</span><input className="input" style={{ width: 140 }} type="number" min={1} max={1_000_000} step={1} value={draft.maxPoints} disabled={busy} onChange={(event) => setDraft((current) => ({ ...current, maxPoints: event.target.value }))} /></label></div>
-    <table className="table"><thead><tr><th>Max %</th><th>Points</th></tr></thead><tbody>
+    <table className="table"><thead><tr><th>{absolute ? "Max distance" : "Max %"}</th><th>Points</th></tr></thead><tbody>
       {draft.bands.map((item, index) => <tr key={item.id} onClick={() => setSelected(item.id)} style={selected === item.id ? { background: "var(--table-row-alt)" } : undefined}>
-        <td><label><span className="sr-only">Maximum percent for band {index + 1}</span><input className="input" style={{ width: "100%" }} type="number" min={0} step="any" placeholder="Catch-all" value={item.maxPct} disabled={busy} onFocus={() => setSelected(item.id)} onChange={(event) => changeBand(item.id, "maxPct", event.target.value)} /></label></td>
+        <td><label><span className="sr-only">Maximum {absolute ? "distance" : "percent"} for band {index + 1}</span><input className="input" style={{ width: "100%" }} type="number" min={0} step="any" placeholder="Catch-all" value={item.maxPct} disabled={busy} onFocus={() => setSelected(item.id)} onChange={(event) => changeBand(item.id, "maxPct", event.target.value)} /></label></td>
         <td><label><span className="sr-only">Points for band {index + 1}</span><input className="input" style={{ width: "100%" }} type="number" step="any" value={item.points} disabled={busy} onFocus={() => setSelected(item.id)} onChange={(event) => changeBand(item.id, "points", event.target.value)} /></label></td>
       </tr>)}
     </tbody></table>
@@ -105,7 +106,7 @@ function RuleEditor({ row, busy, onCancel, onSave }: { row: RatingRow; busy: boo
 export function RatingsTab({ rows, busy, onWork }: { rows: RatingRow[]; busy: boolean; onWork: (fn: () => Promise<void>) => void }) {
   const [edit, setEdit] = useState<RatingRow | null>(null);
   return <>
-    <div className="muted" style={{ marginBottom: 10 }}>Saved tolerances score 100% within warning limits and decline to 0% at alarm limits. Without a warning limit, the decline starts at the reference. Where no saved limit applies, the rating rule uses % distance from the material average. Property scores are combined using the weight.</div>
+    <div className="muted" style={{ marginBottom: 10 }}>Rating bands use the custom tolerance reference when set, otherwise the material average. Durezza uses absolute distance; other properties use percentage distance. Property scores are combined using the weight.</div>
     <table className="table"><thead><tr><th>Property</th><th>Unit</th><th>Weight</th><th>Rule</th><th /></tr></thead><tbody>
       {rows.map((r) => <tr key={r.property_id}><td>{r.property_name}</td><td>{r.unit || "—"}</td><td><WeightField row={r} busy={busy} onWork={onWork} /></td><td>{r.rule_json ? "Set" : "—"}</td><td style={{ textAlign: "right", whiteSpace: "nowrap" }}><button className="btn" disabled={busy} onClick={() => setEdit(r)}>Edit…</button></td></tr>)}
       {!rows.length && <tr><td colSpan={5} className="muted">No data</td></tr>}

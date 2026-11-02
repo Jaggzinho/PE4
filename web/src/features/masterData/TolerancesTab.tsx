@@ -26,6 +26,10 @@ function resolve(draft: Draft) {
       if (value < 0) error = "Percentage deviations must be nonnegative.";
       const delta = reference === null ? 0 : Math.abs(reference) * value / 100;
       effective[bound] = reference === null ? null : bound.endsWith("low") ? reference - delta : reference + delta;
+    } else if (value !== null && draft.modes[bound] === "offset") {
+      if (reference === null) error = "A reference is required for numeric deviations.";
+      if (value < 0) error = "Numeric deviations must be nonnegative.";
+      effective[bound] = reference === null ? null : bound.endsWith("low") ? reference - value : reference + value;
     } else effective[bound] = value;
   }
   if (bounds.every((bound) => effective[bound] === null)) error = "Enter at least one limit.";
@@ -76,13 +80,13 @@ export function TolerancesTab({ rows, materials, properties, busy, onWork }: {
         <button type="button" className="btn" disabled={busy} onClick={() => setOpen(false)}>Close</button><button type="submit" className="btn primary" disabled={busy || !!error}>Save</button></div>
       <div className="row">
         <label>Property <select className="input" required value={draft.property} onChange={(e) => setDraft((d) => ({ ...d, property: e.target.value }))}><option value="">Select property…</option>{props.map((p) => <option key={p.property_id} value={p.property_id}>{p.name}</option>)}</select></label>
-        <label>Material <select className="input" value={draft.material} onChange={(e) => setDraft((d) => ({ ...d, material: e.target.value }))}><option value="">(Default)</option>{mats.map((m) => <option key={m.material_id} value={m.material_id}>{m.code}</option>)}</select></label>
+        <label>Material <select className="input" value={draft.material} onChange={(e) => setDraft((d) => ({ ...d, material: e.target.value }))}><option value="">(Default)</option>{mats.map((m) => <option key={m.material_id} value={m.material_id}>{m.code}{m.description?.trim() ? ` - ${m.description.trim()}` : ""}</option>)}</select></label>
         <label>Reference value <input className="input" type="number" step="any" value={draft.reference} onChange={(e) => setDraft((d) => ({ ...d, reference: e.target.value }))} /></label>
       </div>
       <div className="row" style={{ marginTop: 10 }}>{bounds.map((b) => <label key={b}>{b.replace("_", " ")}
         <input className="input" type="number" aria-label={b.replace("_", " ")} step="any" min={draft.modes[b] === "percent" ? 0 : undefined} value={draft.values[b]} onChange={(e) => setDraft((d) => ({ ...d, values: { ...d.values, [b]: e.target.value } }))} />
         <select className="input" aria-label={`${b.replace("_", " ")} unit`} value={draft.modes[b]} onChange={(e) => setDraft((d) => ({ ...d, modes: { ...d.modes, [b]: e.target.value as ToleranceMode } }))}>
-          <option value="absolute">Numeric limit</option><option value="percent">% from reference</option></select>
+          <option value="absolute">Limit value</option><option value="offset">Numeric distance from reference</option><option value="percent">% from reference</option></select>
         {result.effective[b] != null && <small className="muted">Effective: {result.effective[b]}</small>}
       </label>)}</div>{replacingFallback && <p className="muted">Saving will replace the existing fallback for this material and property.</p>}{error && <p role="alert">{error}</p>}
     </form>, () => !busy && setOpen(false))}

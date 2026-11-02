@@ -33,7 +33,7 @@ a {
 
 .shell {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 240px minmax(0, 1fr);
   height: 100vh;
 }
 
@@ -99,6 +99,7 @@ a {
 
 .content {
   display: grid;
+  min-width: 0;
   grid-template-rows: auto 1fr;
 }
 
@@ -226,6 +227,25 @@ select.input optgroup {
 
 .lots-results-table > tbody > tr:nth-child(even) > td {
   background-color: var(--table-row-alt);
+}
+
+.lots-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.lots-results-table .lots-actions {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  text-align: right;
+  white-space: nowrap;
+  background-color: var(--panel);
+  box-shadow: -6px 0 8px -6px rgba(0, 0, 0, 0.4);
+}
+
+.lots-results-table > tbody > tr:nth-child(even) > .lots-actions {
+  background: linear-gradient(var(--table-row-alt), var(--table-row-alt)), var(--panel);
 }
 
 .table-sort-button {

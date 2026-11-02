@@ -66,12 +66,13 @@ test.describe.serial("built PE3 workflows", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Close" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await page.locator("tbody").getByRole("link", { name: "Charts" }).first().click();
-    await expect(page).toHaveURL(/\/charts\?material_id=\d+/);
-    await page.getByRole("main").getByRole("link", { name: "Ratings" }).click();
-    await expect(page).toHaveURL(/\/ratings\?material_id=\d+/);
-    await page.getByRole("main").getByRole("link", { name: "Calendar" }).click();
-    await expect(page).toHaveURL(/\/calendar\?material_id=\d+/);
+    await expect(page.locator("td.lots-actions").first().getByRole("link")).toHaveCount(0);
+    await page.locator(".nav").getByRole("link", { name: "Charts", exact: true }).click();
+    await expect(page).toHaveURL(/\/charts/);
+    await page.locator(".nav").getByRole("link", { name: "Ratings", exact: true }).click();
+    await expect(page).toHaveURL(/\/ratings/);
+    await page.locator(".nav").getByRole("link", { name: "Calendar", exact: true }).click();
+    await expect(page).toHaveURL(/\/calendar/);
   });
 
   test("import completes and appears in bounded history", async ({ page }) => {

@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ToleranceMode = Literal["absolute", "percent"]
+ToleranceMode = Literal["absolute", "percent", "offset"]
 
 from backend.app.schemas.materials import MaterialOut
 from backend.app.schemas.ids import ApiId
