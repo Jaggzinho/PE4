@@ -1,3 +1,5 @@
+import { formatDate } from "../dateFormat";
+import { DateInput } from "../components/DateInput";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -291,7 +293,12 @@ export default function LotsPage() {
     }
   }
 
-  async function onSave() {
+  async function onSave(event: React.MouseEvent<HTMLButtonElement>) {
+    const invalid = event.currentTarget.closest('[role="dialog"]')?.querySelector<HTMLInputElement>("input:invalid");
+    if (invalid) {
+      invalid.reportValidity();
+      return;
+    }
     if (!canEdit) return;
     setBusy(true);
     setErr(null);
@@ -340,7 +347,7 @@ export default function LotsPage() {
   const activeFilters: Array<{ key: string; label: string; clear: string[] }> = [];
   if (query) activeFilters.push({ key: "q", label: `Search: ${query}`, clear: ["q"] });
   if (materialId) activeFilters.push({ key: "material", label: `Material: ${materials.find((item) => item.material_id === materialId)?.code || materialId}`, clear: ["material_id"] });
-  if (dateFrom || dateTo) activeFilters.push({ key: "dates", label: `${dateField.replace("_date", "").replace("prod", "production")}: ${dateFrom || "…"} – ${dateTo || "…"}`, clear: ["date_field", "date_from", "date_to"] });
+  if (dateFrom || dateTo) activeFilters.push({ key: "dates", label: `${dateField.replace("_date", "").replace("prod", "production")}: ${formatDate(dateFrom, "…")} – ${formatDate(dateTo, "…")}`, clear: ["date_field", "date_from", "date_to"] });
   if (status !== "all") activeFilters.push({ key: "status", label: status.replaceAll("_", " "), clear: ["status"] });
   (Object.entries(componentFilters) as Array<[ComponentFilterKey, string]>).forEach(([key, value]) => {
     if (value) activeFilters.push({ key, label: `${key.toUpperCase()}: ${value}`, clear: [key] });
@@ -389,8 +396,8 @@ export default function LotsPage() {
           <option value="prod_date">Production date</option>
           <option value="analysis_date">Analysis date</option>
         </select>
-        <label className="date-filter-label">From <input className="input" type="date" aria-label="Date from" value={dateFrom} onChange={(e) => setSelection("date_from", e.target.value)} /></label>
-        <label className="date-filter-label">To <input className="input" type="date" aria-label="Date to" value={dateTo} onChange={(e) => setSelection("date_to", e.target.value)} /></label>
+        <label className="date-filter-label">From <DateInput className="input" aria-label="Date from" value={dateFrom} onValueChange={(iso) => setSelection("date_from", iso)} /></label>
+        <label className="date-filter-label">To <DateInput className="input" aria-label="Date to" value={dateTo} onValueChange={(iso) => setSelection("date_to", iso)} /></label>
         <select className="input" aria-label="Completion status" value={status} onChange={(e) => setSelection("status", e.target.value)}>
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
@@ -466,9 +473,9 @@ export default function LotsPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.test_id}>
-                {visibleColumns.has("request_date") && <td>{r.request_date || "—"}</td>}
-                {visibleColumns.has("prod_date") && <td>{r.prod_date || "—"}</td>}
-                {visibleColumns.has("analysis_date") && <td>{r.analysis_date || "—"}</td>}
+                {visibleColumns.has("request_date") && <td>{formatDate(r.request_date)}</td>}
+                {visibleColumns.has("prod_date") && <td>{formatDate(r.prod_date)}</td>}
+                {visibleColumns.has("analysis_date") && <td>{formatDate(r.analysis_date)}</td>}
                 {visibleColumns.has("material") && <td title={r.material_desc || undefined}>{r.material_code}</td>}
                 {visibleColumns.has("lastrina") && <td>{r.lastrina_code || "—"}</td>}
                 {visibleColumns.has("iso") && <td>{r.iso_code || "—"}</td>}
@@ -567,31 +574,31 @@ export default function LotsPage() {
               </select>
               <label className="date-filter-label">
                 Request
-                <input
+                <DateInput
                   className="input"
-                  type="date"
-                  value={(form.request_date as any) || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, request_date: e.target.value }))}
+                  aria-label="Request"
+                  value={form.request_date || ""}
+                  onValueChange={(iso) => setForm((p) => ({ ...p, request_date: iso }))}
                   disabled={busy || !canEdit}
                 />
               </label>
               <label className="date-filter-label">
                 Prod
-                <input
+                <DateInput
                   className="input"
-                  type="date"
-                  value={(form.prod_date as any) || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, prod_date: e.target.value }))}
+                  aria-label="Prod"
+                  value={form.prod_date || ""}
+                  onValueChange={(iso) => setForm((p) => ({ ...p, prod_date: iso }))}
                   disabled={busy || !canEdit}
                 />
               </label>
               <label className="date-filter-label">
                 Analysis
-                <input
+                <DateInput
                   className="input"
-                  type="date"
-                  value={(form.analysis_date as any) || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, analysis_date: e.target.value }))}
+                  aria-label="Analysis"
+                  value={form.analysis_date || ""}
+                  onValueChange={(iso) => setForm((p) => ({ ...p, analysis_date: iso }))}
                   disabled={busy || !canEdit}
                 />
               </label>

@@ -297,13 +297,13 @@ def fetch_rating_series(
     date_to: date | None,
 ) -> list[tuple[date, float]]:
     """
-    Returns a time series of (prod_date, rating_percent) for each test in the
+    Returns a time series of (request_date, rating_percent) for each test in the
     requested date window for the given material.
 
     Rating for each test uses saved material/property tolerances where available,
     and the fixed inclusive +/-20% average band otherwise.
 
-    - Uses tests.prod_date as the x-axis.
+    - Uses tests.request_date as the x-axis.
     - Skips tests that have no scorable contributing properties.
     """
     mid = int(material_id)
@@ -330,23 +330,23 @@ def fetch_rating_series(
     where = [
         "t.deleted_at IS NULL",
         "t.material_id = ?",
-        "t.prod_date IS NOT NULL",
-        "t.prod_date <> DATE '1900-01-01'",
+        "t.request_date IS NOT NULL",
+        "t.request_date <> DATE '1900-01-01'",
         "m.property_id = ANY(?)",
     ]
     params: list[object] = [mid, prop_ids]
     if date_from is not None:
-        where.append("t.prod_date >= ?")
+        where.append("t.request_date >= ?")
         params.append(date_from)
     if date_to is not None:
-        where.append("t.prod_date <= ?")
+        where.append("t.request_date <= ?")
         params.append(date_to)
 
     rows = con.execute(
         f"""
         SELECT
             t.test_id,
-            t.prod_date,
+            t.request_date,
             m.property_id,
             COALESCE(
                 m.value_num,
@@ -355,7 +355,7 @@ def fetch_rating_series(
         FROM tests t
         JOIN measurements m ON m.test_id = t.test_id
         WHERE {' AND '.join(where)}
-        ORDER BY t.prod_date, t.test_id, m.measurement_id
+        ORDER BY t.request_date, t.test_id, m.measurement_id
         """,
         params,
     ).fetchall()

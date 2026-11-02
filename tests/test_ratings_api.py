@@ -15,7 +15,7 @@ from pe3_qc_app.db.repos.tolerances_repo import ensure_material_tolerance
 from pe3_qc_app.services.rating_service import compute_average_ratings_for_materials, compute_material_rating
 
 
-def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True):
+def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True, missing_production_dates: bool = False):
     monkeypatch.setenv("PE3_DB_PATH", str(tmp_path / "ratings.duckdb"))
     monkeypatch.setenv("PE3_JWT_SECRET", "ratings-test-secret-at-least-32-characters")
     monkeypatch.setenv("PE3_CORS_ORIGINS", "")
@@ -68,7 +68,7 @@ def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True):
                     test_id,
                     material_id,
                     prod_date,
-                    prod_date,
+                    (None if index != 2 else date(1900, 1, 1)) if missing_production_dates else prod_date,
                     user_id,
                     datetime(2026, 4, index, 10, 0, 0),
                     f"rating-{index}",
@@ -210,7 +210,7 @@ def test_saved_tolerance_with_weight_can_rate_without_fallback_rule(tmp_path, mo
     assert [point["rating_percent"] for point in response.json()["points"]] == pytest.approx([100, 100, 50])
     from pe3_qc_app.services.test_rating_service import compute_test_ratings
     with app.state.pe3_state.db.connect() as con:
-        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id = ? ORDER BY prod_date", [material_id]).fetchall()
+        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id = ? ORDER BY request_date", [material_id]).fetchall()
         ratings = compute_test_ratings(con, tests=pairs)
         assert [ratings[tid] for tid, _ in pairs] == pytest.approx([100, 100, 50])
 
@@ -254,7 +254,7 @@ def test_configured_tolerance_points_are_shared_by_all_rating_consumers(tmp_path
     calendar = client.get("/api/calendar?year=2026&month=4", headers=headers).json()
     assert [row["rating_percent"] for row in calendar["items"]] == [100, 100, 100]
     with app.state.pe3_state.db.connect() as con:
-        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id=? ORDER BY prod_date", [material_id]).fetchall()
+        pairs = con.execute("SELECT test_id, material_id FROM tests WHERE material_id=? ORDER BY request_date", [material_id]).fetchall()
         assert list(compute_test_ratings(con, tests=pairs).values()) == [100, 100, 100]
         assert compute_material_rating(con, material_id=material_id) == 100
         assert compute_average_ratings_for_materials(con, material_ids=[material_id])[material_id] == 100
@@ -273,3 +273,15 @@ def test_positive_weight_enables_fallback_without_saved_rule(tmp_path, monkeypat
     result = client.get(f"/api/ratings?material_id={material_id}", headers=_viewer_headers(client)).json()
     assert result["configured"] is True
     assert [row["rating_percent"] for row in result["points"]] == [100, 100, 0]
+
+
+def test_rating_dates_ignore_missing_and_placeholder_production_dates(tmp_path, monkeypatch):
+    app, material_id, _ = _app_with_ratings(tmp_path, monkeypatch, missing_production_dates=True)
+    client = TestClient(app)
+    headers = _viewer_headers(client)
+    overview = client.get(f"/api/ratings?material_id={material_id}", headers=headers).json()
+    assert overview["date_min"] == "2026-04-02"
+    assert overview["date_max"] == "2026-04-21"
+    assert [p["date"] for p in overview["points"]] == ["2026-04-02", "2026-04-11", "2026-04-21"]
+    filtered = client.get(f"/api/ratings?material_id={material_id}&date_from=2026-04-11&date_to=2026-04-11", headers=headers).json()
+    assert [p["date"] for p in filtered["points"]] == ["2026-04-11"]

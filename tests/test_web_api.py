@@ -136,6 +136,8 @@ def test_material_search_and_charts(tmp_path):
     assert data["material_id"] == mid
     assert len(data["traces"]) >= 1
     assert all(len(t["x"]) == len(t["y"]) for t in data["traces"])
+    # The seeded test has no production/analysis date; its request date is sufficient.
+    assert all(t["x"] == ["2026-01-02"] for t in data["traces"])
 
     r = client.get("/api/charts/config", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200

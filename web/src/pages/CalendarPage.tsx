@@ -1,3 +1,4 @@
+import { formatDate } from "../dateFormat";
 import { useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
@@ -85,7 +86,7 @@ function FailureDialog({ testId, returnTo, onClose }: { testId: ApiId; returnTo:
         {report && (
           <>
             <div className="muted" style={{ margin: "12px 0" }}>
-              {report.material_code} — {report.request_date || "—"} — Test {report.test_id}
+              {report.material_code} — {formatDate(report.request_date)} — Test {report.test_id}
             </div>
             <Link to={qcHref("lots", { testId: report.test_id, returnTo })}>Open test in Lots</Link>
             {!report.failures.length ? (

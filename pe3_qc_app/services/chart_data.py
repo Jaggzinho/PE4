@@ -123,12 +123,12 @@ def fetch_date_bounds(con, *, material_id: int) -> tuple[date | None, date | Non
     row = con.execute(
         """
         SELECT
-          MIN(prod_date) AS dmin,
-          MAX(prod_date) AS dmax
+          MIN(request_date) AS dmin,
+          MAX(request_date) AS dmax
         FROM tests
         WHERE material_id = ? AND deleted_at IS NULL
-          AND prod_date IS NOT NULL
-          AND prod_date <> DATE '1900-01-01'
+          AND request_date IS NOT NULL
+          AND request_date <> DATE '1900-01-01'
         """,
         [material_id],
     ).fetchone()
@@ -155,27 +155,27 @@ def fetch_series(
     where = [
         "t.material_id = ?",
         "t.deleted_at IS NULL",
-        "t.prod_date IS NOT NULL",
-        "t.prod_date <> DATE '1900-01-01'",
+        "t.request_date IS NOT NULL",
+        "t.request_date <> DATE '1900-01-01'",
         "m.property_id = ?",
     ]
     params: list[object] = [material_id, property_id]
     if date_from:
-        where.append("t.prod_date >= ?")
+        where.append("t.request_date >= ?")
         params.append(date_from)
     if date_to:
-        where.append("t.prod_date <= ?")
+        where.append("t.request_date <= ?")
         params.append(date_to)
 
     rows = con.execute(
         f"""
-        SELECT t.prod_date AS d, COALESCE(m.value_num,
+        SELECT t.request_date AS d, COALESCE(m.value_num,
             TRY_CAST(REPLACE(REPLACE(REPLACE(m.value_text, '%', ''), ' ', ''), ',', '.') AS DOUBLE)
         ) AS v
         FROM tests t
         JOIN measurements m ON m.test_id = t.test_id
         WHERE {' AND '.join(where)}
-        ORDER BY d
+        ORDER BY d, t.test_id, m.measurement_id
         """,
         params,
     ).fetchall()
@@ -192,16 +192,16 @@ def fetch_avg(con, *, material_id: int, property_id: int, date_from: date | None
     where = [
         "t.material_id = ?",
         "t.deleted_at IS NULL",
-        "t.prod_date IS NOT NULL",
-        "t.prod_date <> DATE '1900-01-01'",
+        "t.request_date IS NOT NULL",
+        "t.request_date <> DATE '1900-01-01'",
         "m.property_id = ?",
     ]
     params: list[object] = [material_id, property_id]
     if date_from:
-        where.append("t.prod_date >= ?")
+        where.append("t.request_date >= ?")
         params.append(date_from)
     if date_to:
-        where.append("t.prod_date <= ?")
+        where.append("t.request_date <= ?")
         params.append(date_to)
 
     row = con.execute(

@@ -1,3 +1,4 @@
+import { formatDateTime } from "../dateFormat";
 import { useEffect, useMemo, useState } from "react";
 import { importJob, me, recentImportJobs, submitImport, type ImportJob, type Session } from "../api";
 
@@ -113,7 +114,7 @@ export default function ImportPage() {
         {!historyError && history.length === 0 && <p className="muted">No import jobs recorded yet.</p>}
         {history.length > 0 && <div className="table-wrap"><table><thead><tr><th>Started</th><th>Status</th><th>Details</th><th /></tr></thead><tbody>
           {history.map((entry) => <tr key={entry.job_id}>
-            <td>{new Date(entry.created_at).toLocaleString()}</td>
+            <td>{formatDateTime(entry.created_at)}</td>
             <td>{entry.status}</td>
             <td>{entry.status === "failed" ? entry.error || "No failure detail recorded" : entry.status === "succeeded" ? "Completed" : `${entry.progress}%`}</td>
             <td><button className="btn" onClick={() => setJob(entry)}>View</button></td>

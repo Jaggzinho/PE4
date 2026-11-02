@@ -45,9 +45,9 @@ test.describe.serial("built PE3 workflows", () => {
     await expect(page.getByRole("heading", { name: "Lots / results" })).toBeVisible();
     await page.getByRole("button", { name: "Add", exact: true }).click();
     const newLotDialog = page.getByRole("dialog", { name: "New lot or result" });
-    await expect(newLotDialog.getByLabel("Request", { exact: true })).toHaveAttribute("type", "date");
-    await expect(newLotDialog.getByLabel("Prod", { exact: true })).toHaveAttribute("type", "date");
-    await expect(newLotDialog.getByLabel("Analysis", { exact: true })).toHaveAttribute("type", "date");
+    await expect(newLotDialog.getByLabel("Request", { exact: true })).toHaveAttribute("placeholder", "DD-MM-YYYY");
+    await expect(newLotDialog.getByLabel("Prod", { exact: true })).toHaveAttribute("placeholder", "DD-MM-YYYY");
+    await expect(newLotDialog.getByLabel("Analysis", { exact: true })).toHaveAttribute("placeholder", "DD-MM-YYYY");
     await newLotDialog.getByRole("button", { name: "Close" }).click();
     await expect(page.getByRole("columnheader", { name: "ID" })).toHaveCount(0);
     await page.getByRole("searchbox", { name: "Search all lots" }).fill("MAT-001");

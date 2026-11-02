@@ -1,3 +1,4 @@
+import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -106,6 +107,10 @@ export default function ChartsPage() {
       font: { color: colors.text },
       xaxis: {
         gridcolor: colors.grid,
+        type: "date",
+        tickformat: "%d-%m-%Y",
+        hoverformat: "%d-%m-%Y",
+        title: { text: "Request date" },
         range: xRange ? [xRange.from, xRange.to] : undefined,
       },
       yaxis: { gridcolor: colors.grid },
@@ -168,8 +173,8 @@ export default function ChartsPage() {
               </option>
             ))}
         </select>
-        <input className="input" aria-label="Chart from date" type="date" value={dateFrom} onChange={(e) => setSelection("date_from", e.target.value)} />
-        <input className="input" aria-label="Chart to date" type="date" value={dateTo} onChange={(e) => setSelection("date_to", e.target.value)} />
+        <DateInput className="input" aria-label="Chart from date"  value={dateFrom} onValueChange={(iso) => setSelection("date_from", iso)} />
+        <DateInput className="input" aria-label="Chart to date"  value={dateTo} onValueChange={(iso) => setSelection("date_to", iso)} />
         <label className="pill" style={{ cursor: "pointer" }}>
           <input style={{ marginRight: 6 }} type="checkbox" checked={smooth} onChange={(e) => setSmooth(e.target.checked)} /> Smoothing
         </label>

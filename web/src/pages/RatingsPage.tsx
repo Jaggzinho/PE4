@@ -1,3 +1,4 @@
+import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -146,26 +147,26 @@ export default function RatingsPage() {
           <span className="muted" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
             From
           </span>
-          <input
+          <DateInput
             className="input"
-            type="date"
             min={data?.date_min || undefined}
             max={data?.date_max || undefined}
+            aria-label="From"
             value={dateFrom}
-            onChange={(event) => setDate("date_from", event.target.value)}
+            onValueChange={(iso) => setDate("date_from", iso)}
           />
         </label>
         <label>
           <span className="muted" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
             To
           </span>
-          <input
+          <DateInput
             className="input"
-            type="date"
             min={data?.date_min || undefined}
             max={data?.date_max || undefined}
+            aria-label="To"
             value={dateTo}
-            onChange={(event) => setDate("date_to", event.target.value)}
+            onValueChange={(iso) => setDate("date_to", iso)}
           />
         </label>
         <label className="pill" style={{ cursor: "pointer" }}>
@@ -208,7 +209,7 @@ export default function RatingsPage() {
                   y: points.map((point) => point.rating_percent),
                   line: { color: "#4f86ff", width: 2, shape: smooth && points.length >= 3 ? "spline" : "linear", smoothing: 0.6 },
                   marker: { color: points.map((point) => ratingColor(point.rating_percent)), size: 8 },
-                  hovertemplate: "%{x}<br>%{y:.1f}%<extra></extra>",
+                  hovertemplate: "%{x|%d-%m-%Y}<br>%{y:.1f}%<extra></extra>",
                 },
               ] as any}
               layout={{
@@ -217,7 +218,7 @@ export default function RatingsPage() {
                 plot_bgcolor: "rgba(0,0,0,0)",
                 font: { color: colors.text },
                 margin: { l: 50, r: 20, t: 20, b: 45 },
-                xaxis: { gridcolor: colors.grid, type: "date" },
+                xaxis: { gridcolor: colors.grid, type: "date", tickformat: "%d-%m-%Y", hoverformat: "%d-%m-%Y", title: { text: "Request date" } },
                 yaxis: { gridcolor: colors.grid, range: [0, 100], ticksuffix: "%" },
                 showlegend: false,
               } as any}

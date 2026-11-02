@@ -76,11 +76,13 @@ def test_reference_percent_and_numeric_limits_round_trip(tmp_path, high_mode, wa
     headers = {"Authorization": f"Bearer {token}"}
     con = duckdb.connect(os.environ["PE3_DB_PATH"])
     material_id = con.execute("SELECT material_id FROM materials WHERE code='MAT-001'").fetchone()[0]
+    # Isolate the two values whose average this fixture verifies.
+    con.execute("DELETE FROM measurements WHERE property_id=10")
     test_id = int(new_id())
-    con.execute("INSERT INTO tests(test_id, material_id, prod_date, created_at) VALUES (?, ?, DATE '2026-01-02', CURRENT_TIMESTAMP)", [test_id, material_id])
+    con.execute("INSERT INTO tests(test_id, material_id, request_date, created_at) VALUES (?, ?, DATE '2026-01-02', CURRENT_TIMESTAMP)", [test_id, material_id])
     con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num) VALUES (?, ?, 10, 100)", [int(new_id()), test_id])
     second_test = int(new_id())
-    con.execute("INSERT INTO tests(test_id, material_id, prod_date, created_at) VALUES (?, ?, DATE '2026-01-03', CURRENT_TIMESTAMP)", [second_test, material_id])
+    con.execute("INSERT INTO tests(test_id, material_id, request_date, created_at) VALUES (?, ?, DATE '2026-01-03', CURRENT_TIMESTAMP)", [second_test, material_id])
     con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num) VALUES (?, ?, 10, 200)", [int(new_id()), second_test])
     con.close()
     payload = {
@@ -163,7 +165,7 @@ def test_explicit_hardness_tolerance_overrides_description_rule(tmp_path):
     con = duckdb.connect(os.environ["PE3_DB_PATH"])
     con.execute("INSERT INTO materials(material_id, code, description, active) VALUES (?, 'HARD-80', '80 ShA', TRUE)", [material_id])
     con.execute("INSERT INTO sinottico_items(item_id, material_id, active) VALUES (?, ?, TRUE)", [int(new_id()), material_id])
-    con.execute("INSERT INTO tests(test_id, material_id, prod_date, created_at) VALUES (?, ?, DATE '2026-01-02', CURRENT_TIMESTAMP)", [test_id, material_id])
+    con.execute("INSERT INTO tests(test_id, material_id, request_date, created_at) VALUES (?, ?, DATE '2026-01-02', CURRENT_TIMESTAMP)", [test_id, material_id])
     con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num) VALUES (?, ?, 13, 80)", [int(new_id()), test_id])
     con.close()
     saved = client.post("/api/master-data/tolerances", json={

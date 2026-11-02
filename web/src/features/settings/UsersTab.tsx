@@ -1,3 +1,4 @@
+import { formatDateTime } from "../../dateFormat";
 import { useEffect, useMemo, useState } from "react";
 import {
   settingsCreateUser,
@@ -80,8 +81,8 @@ export function UsersTab({
               <td>{r.username}</td>
               <td>{r.role_name}</td>
               <td>{r.active ? "Yes" : "No"}</td>
-              <td>{r.created_at ? String(r.created_at).slice(0, 19).replace("T", " ") : "—"}</td>
-              <td>{r.last_login_at ? String(r.last_login_at).slice(0, 19).replace("T", " ") : "—"}</td>
+              <td>{formatDateTime(r.created_at)}</td>
+              <td>{formatDateTime(r.last_login_at)}</td>
               <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 <button className="btn" disabled={busy} onClick={() => startEdit(r)}>
                   Edit

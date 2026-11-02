@@ -1,3 +1,4 @@
+import { formatDate } from "../dateFormat";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
@@ -213,7 +214,7 @@ export default function SinotticoPage() {
                   {rowIndex === 0 && <td className="sinottico-mac-cell" rowSpan={group.rows.length}>{group.label}</td>}
                   <td>{r.material_id ? <Link to={qcHref("lots", { materialId: r.material_id })}>{r.material_code || r.excel_code || "—"}</Link> : r.material_code || r.excel_code || "—"}</td>
                   <td>{r.description || "—"}</td>
-                  <td>{r.last_request_date || "—"}</td>
+                  <td>{formatDate(r.last_request_date)}</td>
                   <td>{r.rating_percent == null ? "—" : `${r.rating_percent.toFixed(1)}%`}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {r.material_id && <><Link to={qcHref("charts", { materialId: r.material_id })}>Charts</Link>{" · "}<Link to={qcHref("ratings", { materialId: r.material_id })}>Ratings</Link>{" · "}<Link to={qcHref("calendar", { materialId: r.material_id })}>Calendar</Link>{" "}</>}
@@ -274,7 +275,7 @@ export default function SinotticoPage() {
                   <td>{r.material_code || "—"}</td>
                   <td>{r.description || "—"}</td>
                   <td>{r.lastrina_code || "—"}</td>
-                  <td>{r.last_request_date || "—"}</td>
+                  <td>{formatDate(r.last_request_date)}</td>
                   <td style={{ textAlign: "right" }}>
                     <button className="btn danger" onClick={() => onRemoveFromQueue(r.item_id)} disabled={busy}>
                       Remove

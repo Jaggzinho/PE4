@@ -107,7 +107,7 @@ def fetch_latest_numeric_measurements(
     """
     Returns (material_id, property_id, value_num) for the latest numeric measurement
     per (material_id, property_id) using the policy:
-      ORDER BY COALESCE(t.analysis_date, t.request_date) DESC NULLS LAST,
+      ORDER BY t.request_date DESC NULLS LAST,
                t.test_id DESC,
                m.measurement_id DESC
     Only considers non-deleted tests and non-null value_num.
@@ -127,7 +127,7 @@ def fetch_latest_numeric_measurements(
                 ROW_NUMBER() OVER (
                     PARTITION BY t.material_id, m.property_id
                     ORDER BY
-                        COALESCE(t.analysis_date, t.request_date) DESC NULLS LAST,
+                        t.request_date DESC NULLS LAST,
                         t.test_id DESC,
                         m.measurement_id DESC
                 ) AS rn

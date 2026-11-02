@@ -100,11 +100,11 @@ class TestRatingSeries(unittest.TestCase):
 
             series_all = fetch_rating_series(con, material_id=10, date_from=None, date_to=None)
             self.assertEqual(len(series_all), 3)
-            self.assertEqual([d for (d, _v) in series_all], [date(2026, 4, 2), date(2026, 4, 11), date(2026, 4, 21)])
+            self.assertEqual([d for (d, _v) in series_all], [date(2026, 4, 1), date(2026, 4, 10), date(2026, 4, 20)])
 
             series_mid = fetch_rating_series(con, material_id=10, date_from=date(2026, 4, 5), date_to=date(2026, 4, 15))
             self.assertEqual(len(series_mid), 1)
-            self.assertEqual(series_mid[0][0], date(2026, 4, 11))
+            self.assertEqual(series_mid[0][0], date(2026, 4, 10))
         finally:
             con.close()
 
@@ -131,7 +131,7 @@ class TestRatingSeries(unittest.TestCase):
 
             series = fetch_rating_series(con, material_id=10, date_from=None, date_to=None)
             self.assertEqual(len(series), 1)
-            self.assertEqual(series[0][0], date(2026, 4, 4))
+            self.assertEqual(series[0][0], date(2026, 4, 2))
         finally:
             con.close()
 
@@ -151,11 +151,11 @@ class TestRatingSeries(unittest.TestCase):
 
             series = fetch_rating_series(con, material_id=10, date_from=None, date_to=None)
             self.assertEqual(len(series), 1)
-            self.assertEqual(series[0][0], date(2026, 4, 5))
+            self.assertEqual(series[0][0], date(2026, 4, 1))
         finally:
             con.close()
 
-    def test_excludes_excel_null_prod_date(self) -> None:
+    def test_includes_excel_null_and_missing_prod_date(self) -> None:
         con = self._db()
         try:
             self._seed_minimal(con)
@@ -171,7 +171,7 @@ class TestRatingSeries(unittest.TestCase):
                     date(1900, 1, 1),
                     utc_now_naive(),
                     date(2026, 4, 2),
-                    date(2026, 4, 6),
+                    None,
                     utc_now_naive(),
                 ],
             )
@@ -181,8 +181,7 @@ class TestRatingSeries(unittest.TestCase):
             con.execute("INSERT INTO measurements(measurement_id, test_id, property_id, value_num, value_text) VALUES (3003, 1001, 102, 100.0, NULL)")
 
             series = fetch_rating_series(con, material_id=10, date_from=None, date_to=None)
-            self.assertEqual(len(series), 1)
-            self.assertEqual(series[0][0], date(2026, 4, 6))
+            self.assertEqual([d for d, _ in series], [date(2026, 4, 1), date(2026, 4, 2)])
         finally:
             con.close()
 
