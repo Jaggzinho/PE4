@@ -4,19 +4,13 @@ import Plot from "react-plotly.js";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
+import { ratingColor } from "../features/ratingColor";
 import { useQuery } from "@tanstack/react-query";
 import type { ApiId } from "../api/client";
 import { searchMaterials } from "../api/materials";
 import { ratingsOverview } from "../api/ratings";
 import { EmptyNotice, ErrorNotice, LoadingNotice } from "../components/AsyncState";
 import { chartTheme, useTheme } from "../theme";
-
-
-function ratingColor(value: number): string {
-  if (value < 50) return "#ff5a6f";
-  if (value < 75) return "#ffd24d";
-  return "#55d6a7";
-}
 
 
 function RatingGauge({ title, value }: { title: string; value: number | null }) {

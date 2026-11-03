@@ -2,6 +2,7 @@ import { formatDate } from "../dateFormat";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
+import { ratingColor } from "../features/ratingColor";
 import {
   listQueue,
   listSinottico,
@@ -199,7 +200,7 @@ export default function SinotticoPage() {
         <table className="table">
           <thead>
             <tr>
-              <th>MAC</th>
+              <th className="sinottico-mac-cell">MAC</th>
               <th>Code</th>
               <th>Description</th>
               <th>Last request</th>
@@ -215,7 +216,9 @@ export default function SinotticoPage() {
                   <td>{r.material_id ? <Link to={qcHref("lots", { materialId: r.material_id })}>{r.material_code || r.excel_code || "—"}</Link> : r.material_code || r.excel_code || "—"}</td>
                   <td>{r.description || "—"}</td>
                   <td>{formatDate(r.last_request_date)}</td>
-                  <td>{r.rating_percent == null ? "—" : `${r.rating_percent.toFixed(1)}%`}</td>
+                  <td>{r.rating_percent == null ? "—" : (
+                    <strong style={{ color: ratingColor(r.rating_percent) }}>{r.rating_percent.toFixed(1)}%</strong>
+                  )}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     {r.material_id && <><Link to={qcHref("charts", { materialId: r.material_id })}>Charts</Link>{" · "}<Link to={qcHref("ratings", { materialId: r.material_id })}>Ratings</Link>{" · "}<Link to={qcHref("calendar", { materialId: r.material_id })}>Calendar</Link>{" "}</>}
                     <button className="btn" disabled={busy || !r.item_id || !r.material_id} onClick={() => onAddToQueue(r.item_id)}>

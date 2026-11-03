@@ -129,7 +129,7 @@ export default function App() {
         </div>
       </aside>
 
-      <main className="content">
+      <main className={`content${location.pathname === "/lots" ? " content-lots" : ""}`}>
         <div className="topbar">
           <MaterialSearch
             onPick={(m) => {

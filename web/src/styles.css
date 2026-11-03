@@ -261,7 +261,47 @@ select.input optgroup {
 
 .lots-table-scroll {
   max-width: 100%;
-  overflow-x: auto;
+  min-height: 120px;
+  flex: 1;
+  overflow: auto;
+}
+
+.content-lots {
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.content-lots > .page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lots-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.lots-page > :not(.lots-table-scroll) {
+  flex-shrink: 0;
+}
+
+.lots-results-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.lots-results-table > thead > tr > th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: var(--panel);
+}
+
+.lots-results-table > thead > tr > .lots-actions {
+  z-index: 3;
 }
 
 .lots-results-table .lots-actions {
@@ -372,11 +412,11 @@ select.input optgroup {
   border-top: 3px solid var(--bg);
 }
 
-.sinottico-mac-cell {
+.table .sinottico-mac-cell {
   width: 90px;
   border-right: 1px solid var(--border);
   font-weight: 700;
-  vertical-align: top;
+  text-align: center;
 }
 
 .pill {

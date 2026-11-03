@@ -360,7 +360,7 @@ export default function LotsPage() {
   if (includeDeleted) activeFilters.push({ key: "deleted", label: "Including deleted", clear: ["include_deleted"] });
 
   return (
-    <div className="card">
+    <div className="card lots-page">
       <h2 className="title">Lots / results</h2>
       <div className="row" style={{ marginBottom: 10 }}>
         <button className="btn" onClick={() => refresh().catch((e) => setErr(String(e)))} disabled={busy}>
@@ -451,7 +451,7 @@ export default function LotsPage() {
         </div>
       )}
 
-      <div className="lots-table-scroll">
+      <div className="lots-table-scroll" role="region" aria-label="Lots results" tabIndex={0}>
         <table className="table lots-results-table">
           <thead>
             <tr>
