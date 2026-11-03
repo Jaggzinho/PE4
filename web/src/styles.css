@@ -293,6 +293,19 @@ select.input optgroup {
   border-spacing: 0;
 }
 
+.lots-results-table .lots-request-column {
+  min-width: 115px;
+}
+
+.lots-results-table .lots-date-cell {
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.lots-results-table .lots-description-column {
+  min-width: 240px;
+}
+
 .lots-results-table > thead > tr > th {
   position: sticky;
   top: 0;

@@ -9,7 +9,7 @@ from pe3_qc_app.db.repos.sample_queue_repo import clear_queue, enqueue_item, lis
 from pe3_qc_app.db.repos.settings_repo import get_json
 from pe3_qc_app.db.repos.sinottico_repo import list_dashboard_rows
 from pe3_qc_app.db.repos.tests_repo import create_test_for_sample_request
-from pe3_qc_app.services.rating_service import compute_ratings_for_materials
+from pe3_qc_app.services.rating_service import compute_average_ratings_for_materials
 from pe3_qc_app.services.sinottico_status import compute_status
 
 
@@ -27,7 +27,7 @@ class SinotticoService:
         green_days = int(thresholds.get("green_days", 90))
         yellow_days = int(thresholds.get("yellow_days", 180))
         material_ids = sorted({int(row.material_id) for row in rows if row.material_id is not None})
-        ratings = compute_ratings_for_materials(con, material_ids=material_ids) if material_ids else {}
+        ratings = compute_average_ratings_for_materials(con, material_ids=material_ids) if material_ids else {}
         current_date = today or date.today()
 
         output = []

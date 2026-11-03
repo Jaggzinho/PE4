@@ -26,7 +26,7 @@ const COMPONENT_TYPES = ["ISO", "POL", "CAT", "ADD1", "ADD2", "ADD3", "ADD4", "E
 
 type QcSortKey = "durezza" | "carico_rottura" | "allungamento" | "lacerazione_ba" | "lacerazione_ca" | "abrasione" | "resistivita_superficiale";
 type ComponentFilterKey = "iso" | "pol" | "cat" | "add1" | "add2";
-type ColumnKey = Exclude<LotsSortKey, "latest">;
+type ColumnKey = Exclude<LotsSortKey, "latest"> | "description";
 
 const QC_FIELDS: { key: QcSortKey; label: string }[] = [
   { key: "durezza", label: "Durezza" },
@@ -46,22 +46,25 @@ const LOTS_SORT_KEYS: readonly LotsSortKey[] = [
 const COLUMN_DEFS: Array<{ key: ColumnKey; label: string }> = [
   { key: "request_date", label: "Request" }, { key: "prod_date", label: "Prod" },
   { key: "analysis_date", label: "Analysis" }, { key: "material", label: "Material" },
+  { key: "description", label: "Description" },
   { key: "lastrina", label: "Lastrina" }, { key: "iso", label: "ISO" },
   { key: "pol", label: "POL" }, { key: "cat", label: "CAT" },
   { key: "add1", label: "ADD1" }, { key: "add2", label: "ADD2" }, ...QC_FIELDS,
 ];
 const COLUMN_STORAGE_KEY = "pe3.lots.visible-columns";
+const CURRENT_COLUMN_STORAGE_KEY = `${COLUMN_STORAGE_KEY}.v2`;
 
-function SortHeader({ label, sortKey, current, direction, onSort }: {
+function SortHeader({ label, sortKey, current, direction, onSort, className }: {
   label: string;
   sortKey: LotsSortKey;
   current: LotsSortKey;
   direction: "asc" | "desc";
   onSort: (key: LotsSortKey) => void;
+  className?: string;
 }) {
   const active = current === sortKey;
   return (
-    <th aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}>
+    <th className={className} aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}>
       <button className="table-sort-button" type="button" onClick={() => onSort(sortKey)}>
         {label}<span aria-hidden="true">{active ? (direction === "asc" ? " ↑" : " ↓") : " ↕"}</span>
       </button>
@@ -146,8 +149,10 @@ export default function LotsPage() {
   const [total, setTotal] = useState(0);
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem(environmentStorageKey(COLUMN_STORAGE_KEY)) || "[]") as string[];
+      const current = localStorage.getItem(environmentStorageKey(CURRENT_COLUMN_STORAGE_KEY));
+      const stored = JSON.parse(current ?? localStorage.getItem(environmentStorageKey(COLUMN_STORAGE_KEY)) ?? "[]") as string[];
       const valid = stored.filter((key): key is ColumnKey => COLUMN_DEFS.some((column) => column.key === key));
+      if (!current && valid.length) valid.push("description");
       if (valid.length) return new Set(valid);
     } catch { /* Use all columns when the saved preference is invalid. */ }
     return new Set(COLUMN_DEFS.map((column) => column.key));
@@ -248,7 +253,7 @@ export default function LotsPage() {
       if (next.has(key)) {
         if (next.size > 1) next.delete(key);
       } else next.add(key);
-      localStorage.setItem(environmentStorageKey(COLUMN_STORAGE_KEY), JSON.stringify([...next]));
+      localStorage.setItem(environmentStorageKey(CURRENT_COLUMN_STORAGE_KEY), JSON.stringify([...next]));
       return next;
     });
   }
@@ -455,10 +460,11 @@ export default function LotsPage() {
         <table className="table lots-results-table">
           <thead>
             <tr>
-              {visibleColumns.has("request_date") && <SortHeader label="Request" sortKey="request_date" current={sortBy} direction={sortDir} onSort={changeSort} />}
+              {visibleColumns.has("request_date") && <SortHeader className="lots-request-column" label="Request" sortKey="request_date" current={sortBy} direction={sortDir} onSort={changeSort} />}
               {visibleColumns.has("prod_date") && <SortHeader label="Prod" sortKey="prod_date" current={sortBy} direction={sortDir} onSort={changeSort} />}
               {visibleColumns.has("analysis_date") && <SortHeader label="Analysis" sortKey="analysis_date" current={sortBy} direction={sortDir} onSort={changeSort} />}
               {visibleColumns.has("material") && <SortHeader label="Material" sortKey="material" current={sortBy} direction={sortDir} onSort={changeSort} />}
+              {visibleColumns.has("description") && <th className="lots-description-column" scope="col">Description</th>}
               {visibleColumns.has("lastrina") && <SortHeader label="Lastrina" sortKey="lastrina" current={sortBy} direction={sortDir} onSort={changeSort} />}
               {visibleColumns.has("iso") && <SortHeader label="ISO" sortKey="iso" current={sortBy} direction={sortDir} onSort={changeSort} />}
               {visibleColumns.has("pol") && <SortHeader label="POL" sortKey="pol" current={sortBy} direction={sortDir} onSort={changeSort} />}
@@ -474,10 +480,11 @@ export default function LotsPage() {
           <tbody>
             {rows.map((r) => (
               <tr key={r.test_id}>
-                {visibleColumns.has("request_date") && <td>{formatDate(r.request_date)}</td>}
-                {visibleColumns.has("prod_date") && <td>{formatDate(r.prod_date)}</td>}
-                {visibleColumns.has("analysis_date") && <td>{formatDate(r.analysis_date)}</td>}
+                {visibleColumns.has("request_date") && <td className="lots-date-cell lots-request-column">{formatDate(r.request_date)}</td>}
+                {visibleColumns.has("prod_date") && <td className="lots-date-cell">{formatDate(r.prod_date)}</td>}
+                {visibleColumns.has("analysis_date") && <td className="lots-date-cell">{formatDate(r.analysis_date)}</td>}
                 {visibleColumns.has("material") && <td title={r.material_desc || undefined}>{r.material_code}</td>}
+                {visibleColumns.has("description") && <td className="lots-description-column">{r.material_desc || "—"}</td>}
                 {visibleColumns.has("lastrina") && <td>{r.lastrina_code || "—"}</td>}
                 {visibleColumns.has("iso") && <td>{r.iso_code || "—"}</td>}
                 {visibleColumns.has("pol") && <td>{r.pol_code || "—"}</td>}

@@ -403,7 +403,8 @@ def compute_average_ratings_for_materials(con, *, material_ids: list[int]) -> di
     """
     Returns a mapping material_id -> average_rating_percent (all-time), computed as
     the arithmetic mean of per-test rating% values for each material across all
-    non-deleted tests that have a request_date.
+    non-deleted tests that have a non-placeholder request_date, matching the
+    Ratings page's all-time series.
 
     Each test contributes at most one rating point (computed as a weighted mean
     across contributing properties present on that test).
@@ -446,6 +447,7 @@ def compute_average_ratings_for_materials(con, *, material_ids: list[int]) -> di
         WHERE
             t.deleted_at IS NULL
             AND t.request_date IS NOT NULL
+            AND t.request_date <> DATE '1900-01-01'
             AND t.material_id = ANY(?)
             AND m.property_id = ANY(?)
         ORDER BY t.material_id, t.test_id, m.measurement_id

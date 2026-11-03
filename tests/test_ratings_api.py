@@ -16,7 +16,7 @@ from pe3_qc_app.db.repos.tolerances_repo import ensure_material_tolerance
 from pe3_qc_app.services.rating_service import compute_average_ratings_for_materials, compute_material_rating
 
 
-def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True, missing_production_dates: bool = False):
+def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True, missing_production_dates: bool = False, excluded_first_test: str | None = None):
     monkeypatch.setenv("PE3_DB_PATH", str(tmp_path / "ratings.duckdb"))
     monkeypatch.setenv("PE3_JWT_SECRET", "ratings-test-secret-at-least-32-characters")
     monkeypatch.setenv("PE3_CORS_ORIGINS", "")
@@ -66,15 +66,17 @@ def _app_with_ratings(tmp_path, monkeypatch, *, configured: bool = True, missing
                 INSERT INTO tests(
                     test_id, material_id, request_date, prod_date, analysis_date, notes,
                     created_by, created_at, deleted_at, external_source, external_row_key
-                ) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, NULL, 'Manual', ?)
+                ) VALUES (?, ?, ?, ?, NULL, NULL, ?, ?, ?, 'Manual', ?)
                 """,
                 [
                     test_id,
                     material_id,
-                    prod_date,
+                    (None if excluded_first_test == "missing_date" else date(1900, 1, 1))
+                    if index == 1 and excluded_first_test in ("missing_date", "placeholder_date") else prod_date,
                     (None if index != 2 else date(1900, 1, 1)) if missing_production_dates else prod_date,
                     user_id,
                     datetime(2026, 4, index, 10, 0, 0),
+                    datetime(2026, 5, 1) if index == 1 and excluded_first_test == "deleted" else None,
                     f"rating-{index}",
                 ],
             )
@@ -104,6 +106,47 @@ def _viewer_headers(client: TestClient) -> dict[str, str]:
     response = client.post("/api/auth/login", json={"username": "viewer", "password": "pw"})
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.mark.parametrize("configured", [True, False])
+def test_sinottico_uses_material_average_for_every_row(tmp_path, monkeypatch, configured):
+    app, material_id, empty_material_id = _app_with_ratings(tmp_path, monkeypatch, configured=configured)
+    with app.state.pe3_state.db.write() as con:
+        # Repeated materials share their average; materials without results stay empty.
+        for mid in (material_id, empty_material_id):
+            con.execute(
+                "INSERT INTO sinottico_items(item_id, machine_code, material_id, active) VALUES (?, 'MC-2', ?, TRUE)",
+                [int(new_id()), mid],
+            )
+    client = TestClient(app)
+    headers = _viewer_headers(client)
+    overview = client.get(f"/api/ratings?material_id={material_id}", headers=headers)
+    dashboard = client.get("/api/sinottico", headers=headers)
+    assert overview.status_code == dashboard.status_code == 200
+    average = overview.json()["average_rating"]
+    rated_rows = [row for row in dashboard.json() if int(row["material_id"]) == material_id]
+    assert len(rated_rows) == 2
+    if configured:
+        assert average == pytest.approx(200 / 3)
+        assert average != overview.json()["latest_rating"]
+        assert [row["rating_percent"] for row in rated_rows] == pytest.approx([average, average])
+    else:
+        assert all(row["rating_percent"] is None for row in rated_rows)
+    empty_rows = [row for row in dashboard.json() if int(row["material_id"]) == empty_material_id]
+    assert len(empty_rows) == 1
+    assert empty_rows[0]["rating_percent"] is None
+
+
+@pytest.mark.parametrize("exclusion", ["missing_date", "placeholder_date", "deleted"])
+def test_sinottico_average_matches_ratings_test_exclusions(tmp_path, monkeypatch, exclusion):
+    app, material_id, _ = _app_with_ratings(tmp_path, monkeypatch, excluded_first_test=exclusion)
+    client = TestClient(app)
+    headers = _viewer_headers(client)
+    overview = client.get(f"/api/ratings?material_id={material_id}", headers=headers)
+    dashboard = client.get("/api/sinottico", headers=headers)
+    assert overview.status_code == dashboard.status_code == 200
+    assert len(overview.json()["points"]) == 2
+    assert dashboard.json()[0]["rating_percent"] == pytest.approx(overview.json()["average_rating"])
 
 
 def test_ratings_overview_visibility_dates_and_summary(tmp_path, monkeypatch):
