@@ -1,7 +1,7 @@
 # PE3 QC local web application
 
 PE3 runs locally as one FastAPI process serving the built React application and
-owning the DuckDB file. Production binds only to `127.0.0.1` and uses one
+owning the local DuckDB files. Production binds only to `127.0.0.1` and uses one
 Uvicorn worker.
 
 ## Build
@@ -48,10 +48,77 @@ web-only setting is stored in ignored `data/web-config.json` (or at
 `PE3_WEB_CONFIG_PATH` when explicitly set). Saving does not change the running
 connection or copy data; restart the web server to apply it. `-DbPath` and
 `PE3_DB_PATH` take precedence over this setting, so remove either override
-before restarting if you want the saved path to win. A missing configured file
-stops startup rather than creating a blank database.
+before restarting if you want the saved path to win. This override applies to
+TCM Romania. A missing configured TCM file stops startup rather than creating a
+blank database; unavailable additional environments cannot be selected at login.
 
-Optional arguments:
+## QC environments and shared logins
+
+Select an environment on the login page:
+
+| Environment | Default QC database |
+| --- | --- |
+| 🇷🇴 TCM Romania | Existing launch/configured path, unchanged |
+| 🇷🇴 WAM Romania | `data/environments/wam_ro/qc.duckdb` |
+| 🇮🇹 TCM Italia | `data/environments/tcm_it/qc.duckdb` |
+| 🇨🇳 WAM WuXi | `data/environments/wam_wuxi/qc.duckdb` |
+
+All four use the same calculations, import implementation, and workbook template.
+The three new environments are created with empty QC data and system defaults.
+Materials, results, queues, import jobs, and QC settings are independent. The active
+environment appears in the sidebar and on the import screen. Log out to choose a
+different environment. Separate tabs can stay signed into different environments.
+
+Users, passwords, roles, and permissions are shared. On first startup with this
+version, existing TCM accounts are copied transactionally into `data/auth.duckdb`,
+preserving their IDs and password hashes. Later account administration uses that
+shared store; accounts are not reimported at subsequent startups. Account deletion
+is refused when QC history in any environment references the user; deactivate the
+account instead. New local QC identity references are inactive and have no usable
+copied password. The existing TCM identity rows and historical ownership remain.
+
+Before the first production startup, stop the previous application and all its
+workers, then make an offline backup of its database and local configuration.
+Never copy a DuckDB file while it is being written. Keep the old application version
+with the backup. Development tests rehearse startup against disposable database
+copies. After adoption, back up all four QC files, `auth.duckdb`, and local
+configuration together while the server is stopped. Do not discard the shared
+auth store: it is the authority for account changes made after adoption.
+
+The launcher anchors the application data directory at repository/bundle `data/`.
+`PE3_DATA_DIR` overrides it; `PE3_AUTH_DB_PATH` overrides the shared login-store
+path. When starting the FastAPI factory directly, the default data directory is
+the parent of `PE3_DB_PATH` unless saved local configuration specifies otherwise.
+Set `PE3_DATA_DIR` explicitly for a stable custom location. Paths remain server-side.
+
+Settings → Database saves the next-startup path for the signed-in environment.
+It cannot select another environment's file or the shared login store. Saving also
+preserves the data-directory/auth-store locations so moving TCM's QC file does not
+move the other stores. Additional environment paths are stored in local
+`web-config.json` as:
+
+```json
+{
+  "environments": {
+    "wam_ro": "C:/PE3/data/environments/wam_ro/qc.duckdb",
+    "tcm_it": "C:/PE3/data/environments/tcm_it/qc.duckdb",
+    "wam_wuxi": "C:/PE3/data/environments/wam_wuxi/qc.duckdb"
+  }
+}
+```
+
+Explicitly configured paths must already exist. Omit additional environment
+entries to create their empty databases at the defaults. Keep TCM's existing
+`db_path` setting at the top level. Every store must resolve to a distinct file.
+The backend remains the sole owner of all database access; do not run the legacy
+desktop application against these files concurrently.
+
+Existing browser tokens are invalidated by this upgrade. Sign in again and select
+an environment. API clients may continue to omit `environment_id` on login to use
+TCM Romania; new clients should send an explicit selection. OpenAPI exposes
+`GET /api/environments` and the environment-aware login/session schemas.
+
+Optional launch arguments:
 
 ```powershell
 .\run-web.cmd -Port 8010 -NoBrowser

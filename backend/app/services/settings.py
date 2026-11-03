@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
+
 from backend.app.models.domain import RatingSetting
 from pe3_qc_app.db.repos.properties_repo import list_properties
 from pe3_qc_app.db.repos.rating_repo import list_rules, list_weights, upsert_rule, upsert_weight
@@ -13,6 +15,7 @@ from pe3_qc_app.db.repos.users_repo import (
     update_user,
 )
 from pe3_qc_app.services.rating_service import validate_rule_json
+from backend.app.db.repositories.identity import has_qc_references, remove_projection
 
 
 class SettingsNotFoundError(LookupError):
@@ -20,6 +23,10 @@ class SettingsNotFoundError(LookupError):
 
 
 class InvalidThresholdsError(ValueError):
+    pass
+
+
+class AccountReferencedError(ValueError):
     pass
 
 
@@ -124,6 +131,14 @@ class SettingsService:
         _find(list_users(con), "user_id", user_id)
         reset_password(con, user_id=user_id, new_password=new_password)
 
-    def delete_user(self, con, *, user_id: int) -> None:
+    def delete_user(self, con, *, user_id: int, qc_databases=()) -> None:
         _find(list_users(con), "user_id", user_id)
-        delete_user(con, user_id=user_id)
+        # Account deletion must respect references in every QC file, just as it
+        # did in the former single-file store. Lock in registry order.
+        with ExitStack() as stack:
+            connections = [stack.enter_context(db.serialized()) for db in qc_databases]
+            if any(has_qc_references(qc, user_id) for qc in connections):
+                raise AccountReferencedError("Account has QC history; deactivate it instead")
+            for qc in connections:
+                remove_projection(qc, user_id)
+            delete_user(con, user_id=user_id)

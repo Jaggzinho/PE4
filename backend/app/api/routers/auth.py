@@ -10,8 +10,8 @@ from backend.app.services.auth import (
     PasswordMismatchError,
     SetupDisabledError,
 )
-from backend.app.schemas.auth import FirstAdminRequest, LoginRequest, LoginResponse, SessionResponse, SetupStatusResponse
-from backend.app.api.deps import get_db, get_jwt_settings, get_session, get_state, get_write_db
+from backend.app.schemas.auth import EnvironmentOut, FirstAdminRequest, LoginRequest, LoginResponse, SessionResponse, SetupStatusResponse
+from backend.app.api.deps import get_auth_db, get_auth_write_db, get_jwt_settings, get_session, get_app_state
 from backend.app.core.security import JwtSettings, create_access_token
 
 
@@ -20,7 +20,7 @@ service = AuthService()
 
 
 @router.get("/setup/status", response_model=SetupStatusResponse)
-def setup_status(con=Depends(get_db)):
+def setup_status(con=Depends(get_auth_db)):
     return SetupStatusResponse(needs_setup=service.needs_setup(con))
 
 
@@ -28,8 +28,8 @@ def setup_status(con=Depends(get_db)):
 def setup_first_admin(
     payload: FirstAdminRequest,
     x_pe3_setup_token: str | None = Header(default=None, alias="X-PE3-SETUP-TOKEN"),
-    con=Depends(get_write_db),
-    state=Depends(get_state),
+    con=Depends(get_auth_write_db),
+    state=Depends(get_app_state),
 ):
     try:
         service.create_first_admin(
@@ -51,19 +51,36 @@ def setup_first_admin(
 
 
 @router.post("/auth/login", response_model=LoginResponse)
-def login(payload: LoginRequest, con=Depends(get_write_db), jwt_settings: JwtSettings = Depends(get_jwt_settings)):
+def login(payload: LoginRequest, con=Depends(get_auth_write_db), state=Depends(get_app_state), jwt_settings: JwtSettings = Depends(get_jwt_settings)):
+    if payload.environment_id not in state.environments:
+        raise HTTPException(status_code=400, detail="Unknown environment")
+    if not state.environments[payload.environment_id].available:
+        raise HTTPException(status_code=503, detail="Selected environment is unavailable")
     try:
         session = service.login(con, username=payload.username, password=payload.password)
     except InvalidCredentialsError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username/password")
+    session.environment_id = payload.environment_id
     return LoginResponse(access_token=create_access_token(session, settings=jwt_settings))
 
 
+def _environment(environment) -> EnvironmentOut:
+    return EnvironmentOut(environment_id=environment.config.environment_id,
+                          label=environment.config.label, flag_key=environment.config.flag_key,
+                          available=environment.available)
+
+
+@router.get("/environments", response_model=list[EnvironmentOut])
+def environments(state=Depends(get_app_state)):
+    return [_environment(environment) for environment in state.environments.values()]
+
+
 @router.get("/auth/me", response_model=SessionResponse)
-def me(session=Depends(get_session)):
+def me(session=Depends(get_session), state=Depends(get_app_state)):
     return SessionResponse(
         user_id=int(session.user_id),
         username=str(session.username),
         role_name=str(session.role_name),
         permissions=dict(session.permissions or {}),
+        environment=_environment(state.environments[session.environment_id]),
     )

@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+from backend.app.db.repositories.identity import ensure_projection, session_for_user
 from pe3_qc_app.auth.auth_manager import create_user
 from pe3_qc_app.db.ids import new_id
 from pe3_qc_app.db.repos.rating_repo import upsert_rule, upsert_weight
@@ -18,12 +19,15 @@ def _calendar_app(tmp_path, monkeypatch):
     monkeypatch.setenv("PE3_SETUP_TOKEN", "setup-token")
     monkeypatch.setenv("PE3_SUBSIDIARY_ID", "tcm_ro")
     app = create_app()
+    with app.state.pe3_state.auth_db.write() as auth_con:
+        user_id = create_user(auth_con, username="viewer", password="pw", role_name="ReadOnly")
+        viewer = session_for_user(auth_con, user_id)
 
     material_id = int(new_id())
     property_id = int(new_id())
     test_ids: list[int] = []
     with app.state.pe3_state.db.write() as con:
-        user_id = create_user(con, username="viewer", password="pw", role_name="ReadOnly")
+        ensure_projection(con, viewer)
         con.execute(
             """
             INSERT INTO materials(material_id, code, description, lastrina_code, lastrina_desc, system_name, machine_name, active)

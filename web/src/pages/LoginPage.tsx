@@ -1,18 +1,40 @@
-import { useState } from "react";
-import { login } from "../api";
+import { useEffect, useState } from "react";
+import { listEnvironments, login, type Environment } from "../api";
+import EnvironmentSelect from "../components/EnvironmentSelect";
 
 export default function LoginPage(props: { onLogin: () => Promise<void>; bootError: string | null; needsSetup: boolean }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [environments, setEnvironments] = useState<Environment[]>([]);
+  const [environmentId, setEnvironmentId] = useState(() => sessionStorage.getItem("pe3.environment") || "tcm_ro");
+  const [loading, setLoading] = useState(true);
+  const [environmentError, setEnvironmentError] = useState<string | null>(null);
+
+  async function loadEnvironments() {
+    setLoading(true);
+    setEnvironmentError(null);
+    try {
+      setEnvironments(await listEnvironments());
+    } catch (error) {
+      setEnvironmentError(String(error));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { void loadEnvironments(); }, []);
+  const selected = environments.find((item) => item.environment_id === environmentId && item.available);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!selected || loading || environmentError) return;
     setErr(null);
     setBusy(true);
     try {
-      await login(username, password);
+      await login(username, password, environmentId);
+      sessionStorage.setItem("pe3.environment", environmentId);
       await props.onLogin();
     } catch (e2) {
       setErr(String(e2));
@@ -39,6 +61,11 @@ export default function LoginPage(props: { onLogin: () => Promise<void>; bootErr
           </div>
         )}
         <form onSubmit={submit} style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          <EnvironmentSelect environments={environments} value={environmentId} onChange={setEnvironmentId}
+            disabled={busy || loading || !!environmentError || environments.length === 0} />
+          {loading && <div role="status">Loading environments…</div>}
+          {environmentError && <div role="alert">{environmentError} <button className="btn" type="button" onClick={() => void loadEnvironments()}>Retry</button></div>}
+          {!loading && !environmentError && !environments.some((item) => item.available) && <div role="alert">No environments are available.</div>}
           <input className="input" aria-label="Username" autoComplete="username" required placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} />
           <input
             className="input"
@@ -50,7 +77,7 @@ export default function LoginPage(props: { onLogin: () => Promise<void>; bootErr
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <button className="btn primary" disabled={busy}>
+          <button className="btn primary" disabled={busy || loading || !!environmentError || !selected}>
             {busy ? "Signing in..." : "Login"}
           </button>
         </form>

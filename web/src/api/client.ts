@@ -22,14 +22,28 @@ export class ApiError extends Error {
 }
 
 const TOKEN_KEY = "pe3_access_token";
+// Old tokens lack an environment claim. Each tab now owns its session.
+localStorage.removeItem(TOKEN_KEY);
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function setToken(token: string | null): void {
-  if (!token) localStorage.removeItem(TOKEN_KEY);
-  else localStorage.setItem(TOKEN_KEY, token);
+  if (!token) sessionStorage.removeItem(TOKEN_KEY);
+  else sessionStorage.setItem(TOKEN_KEY, token);
+}
+
+export function getEnvironmentId(): string {
+  return sessionStorage.getItem("pe3.environment") || "tcm_ro";
+}
+
+export function environmentStorageKey(key: string): string {
+  return `pe3.${getEnvironmentId()}.${key}`;
+}
+
+function checkSession(token: string | null): void {
+  if (token !== getToken()) throw new ApiError(409, { code: "session_changed", message: "The session changed. Please retry." });
 }
 
 async function errorFromResponse(response: Response): Promise<ApiError> {
@@ -52,11 +66,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (token) headers.set("Authorization", `Bearer ${token}`);
   if (init?.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   const response = await fetch(path, { ...init, headers });
+  checkSession(token);
   if (!response.ok) throw await errorFromResponse(response);
   if (response.status === 204 || response.status === 205) return undefined as T;
   const contentType = response.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) return undefined as T;
-  return response.json() as Promise<T>;
+  const result = await response.json() as T;
+  checkSession(token);
+  return result;
 }
 
 export async function apiFetchBlob(path: string, init?: RequestInit): Promise<Blob> {
@@ -64,8 +81,11 @@ export async function apiFetchBlob(path: string, init?: RequestInit): Promise<Bl
   const headers = new Headers(init?.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(path, { ...init, headers });
+  checkSession(token);
   if (!response.ok) throw await errorFromResponse(response);
-  return response.blob();
+  const result = await response.blob();
+  checkSession(token);
+  return result;
 }
 
 export function errorMessage(error: unknown): string {

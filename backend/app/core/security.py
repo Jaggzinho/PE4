@@ -23,6 +23,7 @@ def create_access_token(session: Session, *, settings: JwtSettings) -> str:
         "username": session.username,
         "role_name": session.role_name,
         "permissions": dict(session.permissions or {}),
+        "environment_id": session.environment_id,
         "iat": int(now.timestamp()),
         "exp": int(expires_at.timestamp()),
     }

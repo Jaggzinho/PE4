@@ -14,6 +14,7 @@ class Session:
     username: str
     role_name: str
     permissions: dict[str, bool]
+    environment_id: str = "tcm_ro"
 
 
 @dataclass

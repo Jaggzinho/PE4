@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from starlette.concurrency import run_in_threadpool
 
-from backend.app.api.deps import get_db, get_serialized_db, get_session, get_state, require_permission
+from backend.app.api.deps import get_db, get_serialized_db, get_session, get_state, get_auth_db, get_auth_write_db, require_permission
 from backend.app.services.database_source import InvalidDatabaseSource, configured_path, save_next_path
 from backend.app.schemas.settings import (
     ChartsTolerancePctOut,
@@ -21,7 +21,7 @@ from backend.app.schemas.settings import (
     UserOut,
     UserUpdateRequest,
 )
-from backend.app.services.settings import InvalidThresholdsError, SettingsNotFoundError, SettingsService
+from backend.app.services.settings import AccountReferencedError, InvalidThresholdsError, SettingsNotFoundError, SettingsService
 from backend.app.services.notifications import NotificationService, OutlookDraftError
 
 
@@ -33,7 +33,7 @@ can_manage = Depends(require_permission("can_manage_users"))
 
 def _database_source(state) -> DatabaseSourceOut:
     try:
-        pending = configured_path(state.web_config_path)
+        pending = configured_path(state.web_config_path, state.subsidiary_id)
     except InvalidDatabaseSource as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     active = state.db.db_path.resolve()
@@ -53,7 +53,11 @@ def database_source(state=Depends(get_state)):
 @router.put("/database-source", response_model=DatabaseSourceOut, dependencies=[can_manage])
 def save_database_source(payload: DatabaseSourceRequest, state=Depends(get_state)):
     try:
-        save_next_path(state.web_config_path, payload.path, active_path=state.db.db_path)
+        reserved = tuple(environment.config.db_path for sid, environment in state.environments.items()
+                         if sid != state.subsidiary_id) + (state.auth_db.db_path,)
+        save_next_path(state.web_config_path, payload.path, active_path=state.db.db_path,
+                       environment_id=state.subsidiary_id, reserved_paths=reserved,
+                       data_dir=state.data_dir, auth_path=state.auth_db.db_path)
     except InvalidDatabaseSource as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _database_source(state)
@@ -175,45 +179,51 @@ def save_rating_rule(property_id: int, payload: RatingRuleUpsertRequest, con=Dep
 
 
 @router.get("/roles", response_model=list[RoleOut], dependencies=[can_manage])
-def roles(con=Depends(get_db), _session=Depends(get_session)):
+def roles(con=Depends(get_auth_db), _session=Depends(get_session)):
     return [_role(row) for row in service.roles(con)]
 
 
 @router.post("/roles", response_model=RoleOut, dependencies=[can_manage])
-def create_role(payload: RoleUpsertRequest, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def create_role(payload: RoleUpsertRequest, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     return _role(service.save_role(con, role_id=None, payload=payload))
 
 
 @router.put("/roles/{role_id}", response_model=RoleOut, dependencies=[can_manage])
-def update_role(role_id: int, payload: RoleUpsertRequest, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def update_role(role_id: int, payload: RoleUpsertRequest, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     return _role(_not_found(lambda: service.save_role(con, role_id=role_id, payload=payload)))
 
 
 @router.delete("/roles/{role_id}", status_code=204, dependencies=[can_manage])
-def remove_role(role_id: int, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def remove_role(role_id: int, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     _not_found(lambda: service.delete_role(con, role_id=role_id))
 
 
 @router.get("/users", response_model=list[UserOut], dependencies=[can_manage])
-def users(con=Depends(get_db), _session=Depends(get_session)):
+def users(con=Depends(get_auth_db), _session=Depends(get_session)):
     return [_user(row) for row in service.users(con)]
 
 
 @router.post("/users", response_model=UserOut, dependencies=[can_manage])
-def create_user(payload: UserCreateRequest, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def create_user(payload: UserCreateRequest, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     return _user(service.create_user(con, payload=payload))
 
 
 @router.put("/users/{user_id}", response_model=UserOut, dependencies=[can_manage])
-def update_user(user_id: int, payload: UserUpdateRequest, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def update_user(user_id: int, payload: UserUpdateRequest, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     return _user(_not_found(lambda: service.update_user(con, user_id=user_id, payload=payload)))
 
 
 @router.post("/users/{user_id}/reset-password", status_code=204, dependencies=[can_manage])
-def reset_password(user_id: int, payload: ResetPasswordRequest, con=Depends(get_serialized_db), _session=Depends(get_session)):
+def reset_password(user_id: int, payload: ResetPasswordRequest, con=Depends(get_auth_write_db), _session=Depends(get_session)):
     _not_found(lambda: service.reset_password(con, user_id=user_id, new_password=payload.new_password))
 
 
 @router.delete("/users/{user_id}", status_code=204, dependencies=[can_manage])
-def remove_user(user_id: int, con=Depends(get_serialized_db), _session=Depends(get_session)):
-    _not_found(lambda: service.delete_user(con, user_id=user_id))
+def remove_user(user_id: int, con=Depends(get_auth_write_db), state=Depends(get_state), _session=Depends(get_session)):
+    if any(not item.available for item in state.environments.values()):
+        raise HTTPException(status_code=503, detail="All environments must be available to check account history before deletion")
+    try:
+        _not_found(lambda: service.delete_user(con, user_id=user_id,
+                                             qc_databases=[item.db for item in state.environments.values()]))
+    except AccountReferencedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

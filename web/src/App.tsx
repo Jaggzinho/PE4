@@ -1,6 +1,9 @@
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import EnvironmentLabel from "./components/EnvironmentLabel";
+import { environmentStorageKey } from "./api/client";
 import { me as apiMe, setToken, setupStatus, type Session } from "./api";
 import LoginPage from "./pages/LoginPage";
 import SetupPage from "./pages/SetupPage";
@@ -13,14 +16,14 @@ import { useTheme } from "./theme";
 
 const ChartsPage = lazy(() => import("./pages/ChartsPage"));
 const RatingsPage = lazy(() => import("./pages/RatingsPage"));
-const CALENDAR_HREF_STORAGE_KEY = "pe3.calendar.href";
 
 function initialCalendarHref(): string {
-  const saved = sessionStorage.getItem(CALENDAR_HREF_STORAGE_KEY);
+  const saved = sessionStorage.getItem(environmentStorageKey("calendar.href"));
   return saved && (saved === "/calendar" || saved.startsWith("/calendar?")) ? saved : "/calendar";
 }
 
 export default function App() {
+  const queryClient = useQueryClient();
   const nav = useNavigate();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
@@ -41,6 +44,8 @@ export default function App() {
         return;
       }
       const s = await apiMe();
+      sessionStorage.setItem("pe3.environment", s.environment.environment_id);
+      setCalendarHref(initialCalendarHref());
       setSession(s);
       setNeedsSetup(false);
     } catch {
@@ -54,14 +59,15 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!session) return;
     if (location.pathname !== "/calendar") return;
     const params = new URLSearchParams(location.search);
     params.delete("test_id");
     const query = params.toString();
     const href = `/calendar${query ? `?${query}` : ""}`;
-    sessionStorage.setItem(CALENDAR_HREF_STORAGE_KEY, href);
+    sessionStorage.setItem(environmentStorageKey("calendar.href"), href);
     setCalendarHref(href);
-  }, [location.pathname, location.search]);
+  }, [location.pathname, location.search, session]);
 
   const canEditMaster = !!session?.permissions?.can_edit_master;
   const canManageUsers = !!session?.permissions?.can_manage_users;
@@ -79,15 +85,17 @@ export default function App() {
 
   function logout() {
     setToken(null);
+    queryClient.clear();
     setSession(null);
-    nav("/login");
+    setCalendarHref("/calendar");
+    nav("/login", { replace: true });
   }
 
   if (!isAuthed) {
     return (
       <Routes>
         <Route path="/setup" element={<SetupPage onDone={boot} />} />
-        <Route path="/*" element={<LoginPage onLogin={boot} bootError={bootError} needsSetup={needsSetup} />} />
+        <Route path="/*" element={<LoginPage onLogin={async () => { queryClient.clear(); await boot(); nav("/sinottico", { replace: true }); }} bootError={bootError} needsSetup={needsSetup} />} />
       </Routes>
     );
   }
@@ -96,6 +104,7 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">PE3 QC</div>
+        <div style={{ padding: "0 12px 14px", fontWeight: 600 }}><EnvironmentLabel environment={session.environment} /></div>
         <div className="nav">
           {navItems
             .filter((n) => n.show)

@@ -1,3 +1,4 @@
+import { environmentStorageKey } from "../api/client";
 import { formatDate } from "../dateFormat";
 import { DateInput } from "../components/DateInput";
 import { useEffect, useState } from "react";
@@ -145,7 +146,7 @@ export default function LotsPage() {
   const [total, setTotal] = useState(0);
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     try {
-      const stored = JSON.parse(localStorage.getItem(COLUMN_STORAGE_KEY) || "[]") as string[];
+      const stored = JSON.parse(localStorage.getItem(environmentStorageKey(COLUMN_STORAGE_KEY)) || "[]") as string[];
       const valid = stored.filter((key): key is ColumnKey => COLUMN_DEFS.some((column) => column.key === key));
       if (valid.length) return new Set(valid);
     } catch { /* Use all columns when the saved preference is invalid. */ }
@@ -247,7 +248,7 @@ export default function LotsPage() {
       if (next.has(key)) {
         if (next.size > 1) next.delete(key);
       } else next.add(key);
-      localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(environmentStorageKey(COLUMN_STORAGE_KEY), JSON.stringify([...next]));
       return next;
     });
   }

@@ -45,7 +45,7 @@ export function DatabaseTab() {
         <p>Active path: <code style={{ overflowWrap: "anywhere" }}>{source.active_path}</code></p>
         <p>Active source: <strong>{source.active_source.replaceAll("_", " ")}</strong></p>
         {source.configured_next_path && <p>Saved web path: <code style={{ overflowWrap: "anywhere" }}>{source.configured_next_path}</code></p>}
-        <p className="muted">Choose an existing, readable .duckdb file. This only changes local startup configuration; the current database connection and data are not moved or switched. Snapshot distribution is a separate legacy workflow.</p>
+        <p className="muted">Choose an existing, readable .duckdb file for the environment shown in the sidebar. The saved path applies to that environment after restart. Users and passwords remain in the shared login store.</p>
         {source.override_active && <p role="status">An explicit launch path currently takes precedence over this saved web path.</p>}
         {source.restart_required && <p role="status">Restart required to apply the saved path (after removing any explicit launch override).</p>}
         <form onSubmit={save}>

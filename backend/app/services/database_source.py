@@ -39,8 +39,9 @@ def _read(path: Path) -> dict:
     return data
 
 
-def configured_path(path: Path) -> Path | None:
-    raw = _read(path).get("db_path")
+def configured_path(path: Path, environment_id: str = "tcm_ro") -> Path | None:
+    data = _read(path)
+    raw = data.get("db_path") if environment_id == "tcm_ro" else data.get("environments", {}).get(environment_id)
     if raw is None:
         return None
     if not isinstance(raw, str) or not raw.strip():
@@ -76,11 +77,29 @@ def validate_database_path(raw: str, *, active_path: Path) -> Path:
     return candidate
 
 
-def save_next_path(config_file: Path, raw: str, *, active_path: Path) -> Path:
+def save_next_path(config_file: Path, raw: str, *, active_path: Path,
+                   environment_id: str = "tcm_ro", reserved_paths: tuple[Path, ...] = (),
+                   data_dir: Path | None = None, auth_path: Path | None = None) -> Path:
     candidate = validate_database_path(raw, active_path=active_path)
     with _config_lock:
         data = _read(config_file)
-        data["db_path"] = str(candidate)
+        # Check both live paths and pending restart paths under the config lock.
+        from backend.app.services.environments import same_file
+        pending = [Path(value) for key, value in data.get("environments", {}).items() if key != environment_id]
+        if environment_id != "tcm_ro" and data.get("db_path"):
+            pending.append(Path(data["db_path"]))
+        if any(same_file(candidate, path) for path in (*reserved_paths, *pending)):
+            raise InvalidDatabaseSource("This path belongs to another environment or the shared login store")
+        if environment_id == "tcm_ro":
+            data["db_path"] = str(candidate)
+        else:
+            data.setdefault("environments", {})[environment_id] = str(candidate)
+        # Moving TCM's QC path must not implicitly move the shared identity store
+        # or change the default paths of the other three environments.
+        if data_dir is not None:
+            data["data_dir"] = str(data_dir)
+        if auth_path is not None:
+            data["auth_db_path"] = str(auth_path)
         try:
             config_file.parent.mkdir(parents=True, exist_ok=True)
             fd, temp_name = tempfile.mkstemp(prefix="web-config-", suffix=".tmp", dir=config_file.parent)

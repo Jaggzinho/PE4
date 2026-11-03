@@ -14,7 +14,7 @@ import webbrowser
 import uvicorn
 
 from backend.app.static_spa import default_static_dir
-from backend.app.services.database_source import InvalidDatabaseSource, configured_path, web_config_path
+from backend.app.services.database_source import InvalidDatabaseSource, configured_path, web_config_path, _read
 
 
 def _runtime_root() -> Path:
@@ -98,6 +98,8 @@ def main(argv: list[str] | None = None) -> None:
     root = _runtime_root()
     data_dir = root / "data"
     try:
+        saved_data_dir = _read(web_config_path()).get("data_dir")
+        os.environ.setdefault("PE3_DATA_DIR", str(saved_data_dir or data_dir))
         saved_path = configured_path(web_config_path()) if not args.db and not os.getenv("PE3_DB_PATH") else None
     except InvalidDatabaseSource as exc:
         raise SystemExit(str(exc)) from exc

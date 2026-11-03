@@ -73,6 +73,7 @@ export default function SettingsPage() {
   return (
     <div className="card">
       <h2 className="title">Application settings</h2>
+      {(tab === "roles" || tab === "users") && <p role="note">Users, passwords, roles, and permissions are shared across all four environments.</p>}
       <div className="row" style={{ marginBottom: 10 }}>
         <button className="btn" onClick={() => setTab("charts")} disabled={unavailable || tab === "charts"}>
           Charts

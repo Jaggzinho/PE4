@@ -48,6 +48,7 @@ def test_database_source_permissions_validation_and_next_startup(tmp_path, monke
     assert client.app.state.pe3_state.db.db_path == active
     assert json.loads(config_file.read_text(encoding="utf-8")) == {
         "other_setting": "preserve", "db_path": str(next_db),
+        "data_dir": str(tmp_path), "auth_db_path": str(tmp_path / "auth.duckdb"),
     }
     assert load_config().db_path == active  # explicit environment override still wins
 

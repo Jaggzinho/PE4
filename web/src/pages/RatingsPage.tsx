@@ -1,3 +1,4 @@
+import { getEnvironmentId } from "../api/client";
 import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
 import { useEffect, useState } from "react";
@@ -82,12 +83,12 @@ export default function RatingsPage() {
   const dateTo = searchParams.get("date_to") || "";
   const [smooth, setSmooth] = useState(true);
   const materialsQuery = useQuery({
-    queryKey: ["materials", "active"],
+    queryKey: [getEnvironmentId(), "materials", "active"],
     queryFn: () => searchMaterials(""),
   });
   const materials = (materialsQuery.data || []).filter((material) => material.active);
   const ratingsQuery = useQuery({
-    queryKey: ["ratings", materialId, dateFrom, dateTo],
+    queryKey: [getEnvironmentId(), "ratings", materialId, dateFrom, dateTo],
     queryFn: () => ratingsOverview(materialId, dateFrom || undefined, dateTo || undefined),
     enabled: materialId.length > 0,
   });

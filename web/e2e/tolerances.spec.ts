@@ -4,6 +4,8 @@ test.use({ video: "off" });
 
 test("material tolerance editor and chart smoothing", async ({ page }) => {
   await page.goto("/login");
+  await page.getByRole("combobox", { name: "Environment" }).click();
+  await page.getByRole("option", { name: "WAM WuXi", exact: true }).click();
   await page.getByLabel("Username").fill("admin");
   await page.getByLabel("Password").fill("pw");
   await page.getByRole("button", { name: "Login" }).click();

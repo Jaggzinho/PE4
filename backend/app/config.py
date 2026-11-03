@@ -6,7 +6,8 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
-from backend.app.services.database_source import configured_path, web_config_path
+from backend.app.services.database_source import configured_path, web_config_path, _read
+from backend.app.services.environments import EnvironmentConfig, load_environments
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -27,6 +28,9 @@ class WebConfig:
     subsidiary_id: str
     setup_token: str | None
     max_import_bytes: int
+    auth_path: Path
+    environments: tuple[EnvironmentConfig, ...]
+    data_dir: Path
 
 
 def load_config() -> WebConfig:
@@ -57,6 +61,11 @@ def load_config() -> WebConfig:
     if max_import_bytes <= 0:
         raise RuntimeError("PE3_MAX_IMPORT_BYTES must be greater than zero")
 
+    saved = _read(local_config_file)
+    data_dir = Path(os.getenv("PE3_DATA_DIR") or saved.get("data_dir") or db_path.parent).expanduser().resolve()
+    auth_path = Path(os.getenv("PE3_AUTH_DB_PATH") or saved.get("auth_db_path") or data_dir / "auth.duckdb").expanduser().resolve()
+    environments = load_environments(config_file=local_config_file, current_path=db_path,
+                                    current_source=db_source, data_dir=data_dir, auth_path=auth_path)
     return WebConfig(
         db_path=db_path,
         db_source=db_source,
@@ -67,6 +76,9 @@ def load_config() -> WebConfig:
         subsidiary_id=subsidiary_id,
         setup_token=setup_token,
         max_import_bytes=max_import_bytes,
+        auth_path=auth_path,
+        environments=environments,
+        data_dir=data_dir,
     )
 
 

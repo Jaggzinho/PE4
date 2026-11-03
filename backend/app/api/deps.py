@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Iterator
 
@@ -12,6 +12,19 @@ from backend.app.jobs.manager import JobManager
 from pe3_qc_app.core.context import Session
 from pe3_qc_app.db.db_manager import DbManager
 from pe3_qc_app.db.migrations import apply_migrations
+from backend.app.db.repositories import identity
+from backend.app.services.environments import EnvironmentConfig
+
+
+@dataclass(frozen=True)
+class EnvironmentState:
+    config: EnvironmentConfig
+    db: DbManager | None
+    jobs: JobManager | None
+
+    @property
+    def available(self) -> bool:
+        return self.db is not None and self.jobs is not None
 
 
 @dataclass(frozen=True)
@@ -24,17 +37,63 @@ class AppState:
     max_import_bytes: int = 50 * 1024 * 1024
     db_source: str = "environment"
     web_config_path: Path | None = None
+    auth_db: DbManager | None = None
+    environments: dict[str, EnvironmentState] = field(default_factory=dict)
+    data_dir: Path | None = None
 
 
-def get_state(request: Request) -> AppState:
+def get_app_state(request: Request) -> AppState:
     state = getattr(request.app.state, "pe3_state", None)
     if not isinstance(state, AppState):
         raise RuntimeError("App state not initialized")
     return state
 
 
-def get_jwt_settings(state: AppState = Depends(get_state)) -> JwtSettings:
+def get_jwt_settings(state: AppState = Depends(get_app_state)) -> JwtSettings:
     return state.jwt
+
+
+def get_auth_db(state: AppState = Depends(get_app_state)) -> Iterator:
+    with state.auth_db.connect() as con:
+        yield con
+
+
+def get_auth_write_db(state: AppState = Depends(get_app_state)) -> Iterator:
+    with state.auth_db.serialized() as con:
+        yield con
+
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+def get_session(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    state: AppState = Depends(get_app_state),
+) -> Session:
+    if creds is None or not creds.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    try:
+        payload = decode_access_token(creds.credentials, settings=state.jwt)
+        environment_id = payload["environment_id"]
+        if environment_id not in state.environments:
+            raise ValueError("Unknown environment")
+        user_id = int(payload["sub"])
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    with state.auth_db.connect() as con:
+        session = identity.session_for_user(con, user_id)
+    if session is None:
+        raise HTTPException(status_code=401, detail="Account is unavailable")
+    session.environment_id = environment_id
+    return session
+
+
+def get_state(state: AppState = Depends(get_app_state), session: Session = Depends(get_session)) -> AppState:
+    environment = state.environments[session.environment_id]
+    if not environment.available:
+        raise HTTPException(status_code=503, detail="Selected environment is unavailable")
+    return replace(state, db=environment.db, jobs=environment.jobs,
+                   subsidiary_id=environment.config.environment_id, db_source=environment.config.source)
 
 
 def get_db(state: AppState = Depends(get_state)) -> Iterator:
@@ -45,47 +104,24 @@ def get_db(state: AppState = Depends(get_state)) -> Iterator:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
-def get_write_db(state: AppState = Depends(get_state)) -> Iterator:
+def get_write_db(state: AppState = Depends(get_state), session: Session = Depends(get_session)) -> Iterator:
     """Provide a serialized transaction for a complete mutation request."""
     try:
         with state.db.write() as con:
+            identity.ensure_projection(con, session)
             yield con
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
 
 
-def get_serialized_db(state: AppState = Depends(get_state)) -> Iterator:
+def get_serialized_db(state: AppState = Depends(get_state), session: Session = Depends(get_session)) -> Iterator:
     """Serialize writes that DuckDB cannot perform in one FK transaction."""
     try:
         with state.db.serialized() as con:
+            identity.ensure_projection(con, session)
             yield con
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
-
-
-_bearer = HTTPBearer(auto_error=False)
-
-
-def get_session(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    state: AppState = Depends(get_state),
-) -> Session:
-    if creds is None or not creds.credentials:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
-    try:
-        payload = decode_access_token(creds.credentials, settings=state.jwt)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
-
-    permissions = payload.get("permissions") or {}
-    if not isinstance(permissions, dict):
-        permissions = {}
-    return Session(
-        user_id=int(payload.get("sub") or 0),
-        username=str(payload.get("username") or ""),
-        role_name=str(payload.get("role_name") or ""),
-        permissions={str(key): bool(value) for key, value in permissions.items()},
-    )
 
 
 def require_permission(permission: str):
@@ -114,6 +150,9 @@ def get_job_manager(state: AppState = Depends(get_state)) -> JobManager:
 __all__ = [
     "AppState",
     "get_db",
+    "get_app_state",
+    "get_auth_db",
+    "get_auth_write_db",
     "get_jwt_settings",
     "get_job_manager",
     "get_serialized_db",

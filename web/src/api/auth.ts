@@ -6,14 +6,26 @@ export type Session = {
   username: string;
   role_name: string;
   permissions: Record<string, boolean>;
+  environment: Environment;
 };
+
+export type Environment = {
+  environment_id: string;
+  label: string;
+  flag_key: string;
+  available: boolean;
+};
+
+export function listEnvironments(): Promise<Environment[]> {
+  return apiFetch("/api/environments");
+}
 
 export type SetupStatus = { needs_setup: boolean };
 
-export async function login(username: string, password: string): Promise<void> {
+export async function login(username: string, password: string, environmentId = "tcm_ro"): Promise<void> {
   const data = await apiFetch<{ access_token: string }>("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, password, environment_id: environmentId }),
   });
   setToken(data.access_token);
 }

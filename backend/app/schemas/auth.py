@@ -6,6 +6,15 @@ from backend.app.schemas.ids import ApiId
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1)
     password: str = Field(min_length=1)
+    # Compatibility for existing local API clients; the UI always sends a choice.
+    environment_id: str = "tcm_ro"
+
+
+class EnvironmentOut(BaseModel):
+    environment_id: str
+    label: str
+    flag_key: str
+    available: bool
 
 
 class LoginResponse(BaseModel):
@@ -18,6 +27,7 @@ class SessionResponse(BaseModel):
     username: str
     role_name: str
     permissions: dict[str, bool]
+    environment: EnvironmentOut
 
 
 class SetupStatusResponse(BaseModel):

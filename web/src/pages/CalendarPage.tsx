@@ -1,3 +1,4 @@
+import { getEnvironmentId } from "../api/client";
 import { formatDate } from "../dateFormat";
 import { useEffect, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -49,7 +50,7 @@ function monthDays(value: string): { iso: string; day: number; inMonth: boolean 
 
 function FailureDialog({ testId, returnTo, onClose }: { testId: ApiId; returnTo: string; onClose: () => void }) {
   const reportQuery = useQuery({
-    queryKey: ["calendar", "failures", testId],
+    queryKey: [getEnvironmentId(), "calendar", "failures", testId],
     queryFn: () => calendarFailures(testId),
   });
   const report = reportQuery.data || null;
@@ -157,7 +158,7 @@ export default function CalendarPage() {
   const returnTo = `/calendar${returnQuery ? `?${returnQuery}` : ""}`;
   const [year, month] = selectedMonth.split("-").map(Number);
   const monthQuery = useQuery({
-    queryKey: ["calendar", "month", year, month],
+    queryKey: [getEnvironmentId(), "calendar", "month", year, month],
     queryFn: () => calendarMonth(year, month),
   });
   const data = monthQuery.data || null;

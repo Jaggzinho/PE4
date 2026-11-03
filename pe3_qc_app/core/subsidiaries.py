@@ -12,9 +12,9 @@ class Subsidiary:
 
 SUBSIDIARIES: tuple[Subsidiary, ...] = (
     Subsidiary("tcm_ro", "TCM Romania", "ro"),
-    Subsidiary("tcm_it", "TCM Italia", "it"),
     Subsidiary("wam_ro", "WAM Romania", "ro"),
-    Subsidiary("wam_wuxi", "WAM Wuxi", "cn"),
+    Subsidiary("tcm_it", "TCM Italia", "it"),
+    Subsidiary("wam_wuxi", "WAM WuXi", "cn"),
 )
 
 DEFAULT_SUBSIDIARY_ID = "tcm_ro"

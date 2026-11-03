@@ -1,6 +1,7 @@
 import { formatDateTime } from "../dateFormat";
 import { useEffect, useMemo, useState } from "react";
 import { importJob, me, recentImportJobs, submitImport, type ImportJob, type Session } from "../api";
+import EnvironmentLabel from "../components/EnvironmentLabel";
 
 export default function ImportPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -61,6 +62,7 @@ export default function ImportPage() {
   return (
     <div className="card">
       <h2 className="title">Import</h2>
+      {session && <p>Import destination: <strong><EnvironmentLabel environment={session.environment} /></strong></p>}
       {!canImport && (
         <div className="muted" style={{ marginBottom: 10 }}>
           Your role cannot import workbooks.
