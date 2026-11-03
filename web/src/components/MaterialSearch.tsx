@@ -31,10 +31,10 @@ export default function MaterialSearch(props: { onPick: (m: Material) => void })
   }, [q]);
 
   return (
-    <div style={{ position: "relative", width: 520, maxWidth: "100%" }}>
+    <div className="material-search">
       <input
         className="input"
-        style={{ width: "100%" }}
+        aria-label="Search material"
         placeholder="Search material..."
         value={q}
         onFocus={() => setOpen(true)}
