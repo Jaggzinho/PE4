@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { listEnvironments, login, type Environment } from "../api";
 import EnvironmentSelect from "../components/EnvironmentSelect";
+import logo from "../assets/logo.png";
 
 export default function LoginPage(props: { onLogin: () => Promise<void>; bootError: string | null; needsSetup: boolean }) {
   const [username, setUsername] = useState("");
@@ -46,7 +47,7 @@ export default function LoginPage(props: { onLogin: () => Promise<void>; bootErr
   return (
     <div style={{ display: "grid", placeItems: "center", height: "100vh", padding: 16 }}>
       <div className="card" style={{ width: 420, maxWidth: "100%" }}>
-        <h1 className="title">PE3 QC</h1>
+        <h1 className="title login-brand"><img className="brand-logo" src={logo} alt="PE3 QC" /></h1>
         <div className="muted" style={{ marginBottom: 12 }}>
           Sign in
         </div>

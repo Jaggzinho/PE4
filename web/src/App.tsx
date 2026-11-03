@@ -13,6 +13,7 @@ import LotsPage from "./pages/LotsPage";
 import SettingsHubPage from "./pages/SettingsHubPage";
 import MaterialSearch from "./components/MaterialSearch";
 import { useTheme } from "./theme";
+import logo from "./assets/logo.png";
 
 const ChartsPage = lazy(() => import("./pages/ChartsPage"));
 const RatingsPage = lazy(() => import("./pages/RatingsPage"));
@@ -103,19 +104,20 @@ export default function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">PE3 QC</div>
-        <div style={{ padding: "0 12px 14px", fontWeight: 600 }}><EnvironmentLabel environment={session.environment} /></div>
-        <div className="nav">
-          {navItems
-            .filter((n) => n.show)
-            .map((n) => (
-              <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? "active" : "")}>
-                {n.label}
-              </NavLink>
-            ))}
+        <div className="sidebar-scroll">
+          <div className="brand"><img className="brand-logo" src={logo} alt="PE3 QC" /></div>
+          <div style={{ padding: "0 12px 14px", fontWeight: 600 }}><EnvironmentLabel environment={session.environment} /></div>
+          <div className="nav">
+            {navItems
+              .filter((n) => n.show)
+              .map((n) => (
+                <NavLink key={n.to} to={n.to} className={({ isActive }) => (isActive ? "active" : "")}>
+                  {n.label}
+                </NavLink>
+              ))}
+          </div>
         </div>
-        <div className="spacer" />
-        <div className="card">
+        <div className="card sidebar-account">
           <div style={{ fontWeight: 600 }}>{session.username}</div>
           <div className="muted" style={{ fontSize: 13 }}>
             {session.role_name}

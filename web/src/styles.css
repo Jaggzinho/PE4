@@ -38,12 +38,34 @@ a {
 }
 
 .sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 240px;
+  z-index: 10;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   background: var(--sidebar);
   border-right: 1px solid var(--border);
   padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.sidebar-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-account {
+  flex-shrink: 0;
+  overflow-wrap: anywhere;
 }
 
 .brand {
@@ -53,6 +75,17 @@ a {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-subtle);
+}
+
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.login-brand {
+  max-width: 240px;
+  margin-inline: auto;
 }
 
 .nav {
@@ -72,10 +105,6 @@ a {
   background: rgba(79, 134, 255, 0.12);
   border-color: rgba(79, 134, 255, 0.35);
   color: var(--text);
-}
-
-.sidebar .spacer {
-  flex: 1;
 }
 
 .btn {
@@ -98,6 +127,7 @@ a {
 }
 
 .content {
+  grid-column: 2;
   display: grid;
   min-width: 0;
   grid-template-rows: auto 1fr;
