@@ -4,6 +4,7 @@ import { Settings as SettingsIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import EnvironmentLabel from "./components/EnvironmentLabel";
 import { environmentStorageKey } from "./api/client";
+import { clearMaterialSelections } from "./features/useMaterialSelection";
 import { me as apiMe, setToken, setupStatus, type Session } from "./api";
 import LoginPage from "./pages/LoginPage";
 import SetupPage from "./pages/SetupPage";
@@ -85,6 +86,7 @@ export default function App() {
   );
 
   function logout() {
+    clearMaterialSelections();
     setToken(null);
     queryClient.clear();
     setSession(null);

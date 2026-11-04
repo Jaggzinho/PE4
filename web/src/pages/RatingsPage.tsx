@@ -2,11 +2,11 @@ import { getEnvironmentId } from "../api/client";
 import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
+import { useMaterialSelection } from "../features/useMaterialSelection";
 import { ratingColor } from "../features/ratingColor";
 import { useQuery } from "@tanstack/react-query";
-import type { ApiId } from "../api/client";
 import { searchMaterials } from "../api/materials";
 import { ratingsOverview } from "../api/ratings";
 import { EmptyNotice, ErrorNotice, LoadingNotice } from "../components/AsyncState";
@@ -71,8 +71,7 @@ function RatingGauge({ title, value }: { title: string; value: number | null }) 
 export default function RatingsPage() {
   const { theme } = useTheme();
   const colors = chartTheme(theme);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const materialId = searchParams.get("material_id") || "";
+  const { materialId, searchParams, setSearchParams } = useMaterialSelection("ratings");
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
   const [smooth, setSmooth] = useState(true);
@@ -91,12 +90,6 @@ export default function RatingsPage() {
   const queryError = materialsQuery.error || ratingsQuery.error;
 
   useEffect(() => {
-    if (!materialId && materials.length) {
-      setSearchParams({ material_id: String(materials[0].material_id) }, { replace: true });
-    }
-  }, [materialId, materials, setSearchParams]);
-
-  useEffect(() => {
     if (data && ((!dateFrom && data.date_from) || (!dateTo && data.date_to))) {
       const next = new URLSearchParams(searchParams);
       if (!dateFrom && data.date_from) next.set("date_from", data.date_from);
@@ -104,14 +97,6 @@ export default function RatingsPage() {
       setSearchParams(next, { replace: true });
     }
   }, [data, dateFrom, dateTo, searchParams, setSearchParams]);
-
-  function selectMaterial(nextMaterialId: ApiId) {
-    if (!nextMaterialId) {
-      setSearchParams({});
-      return;
-    }
-    setSearchParams({ material_id: String(nextMaterialId) });
-  }
 
   function setDate(key: "date_from" | "date_to", value: string) {
     const next = new URLSearchParams(searchParams);
@@ -129,7 +114,7 @@ export default function RatingsPage() {
           <span className="muted" style={{ display: "block", fontSize: 12, marginBottom: 4 }}>
             Material
           </span>
-          <select className="input" value={materialId} onChange={(event) => selectMaterial(event.target.value)}>
+          <select className="input" value={materialId} onChange={(event) => setSearchParams({ material_id: event.target.value })}>
             <option value="">Select material…</option>
             {materials.map((material) => (
               <option key={material.material_id} value={material.material_id}>

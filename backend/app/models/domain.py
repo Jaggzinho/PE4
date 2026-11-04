@@ -10,6 +10,8 @@ class ChartTrace:
     x: list[str]
     y: list[float]
     kind: str = "series"
+    measured_x: list[str] = field(default_factory=list)
+    measured_y: list[float] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

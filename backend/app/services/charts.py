@@ -95,7 +95,8 @@ class ChartService:
                 date_to=date_to,
             )
             x, y = self._series_values(points, smooth=smooth)
-            traces = [ChartTrace(name="Series", x=x, y=y)]
+            measured_x, measured_y = self._series_values(points, smooth=False)
+            traces = [ChartTrace(name="Series", x=x, y=y, measured_x=measured_x, measured_y=measured_y)]
             average = self._average([float(point.y) for point in points])
             if include_average and x and average is not None:
                 traces.append(ChartTrace(name="Average", x=x, y=[average] * len(x), kind="avg"))

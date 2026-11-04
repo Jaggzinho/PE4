@@ -26,6 +26,7 @@ test("ratings smoothing changes only the overall line", async ({ page }) => {
     });
   });
   await page.goto("/ratings");
+  await page.getByRole("combobox", { name: "Material", exact: true }).selectOption({ index: 1 });
   const toggle = page.getByRole("checkbox", { name: "Smoothing" });
   await expect(toggle).toBeChecked();
   const line = page.locator(".scatterlayer path.js-line");

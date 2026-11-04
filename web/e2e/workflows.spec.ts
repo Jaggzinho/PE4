@@ -75,6 +75,39 @@ test.describe.serial("built PE3 workflows", () => {
     await expect(page).toHaveURL(/\/calendar/);
   });
 
+  test("Charts and Ratings remember material choices within a login session", async ({ page }) => {
+    await login(page);
+    const nav = page.locator(".nav");
+    const charts = nav.getByRole("link", { name: "Charts", exact: true });
+    const ratings = nav.getByRole("link", { name: "Ratings", exact: true });
+    const chartMaterial = page.getByLabel("Chart material");
+    const ratingMaterial = page.getByRole("combobox", { name: "Material", exact: true });
+
+    await charts.click();
+    await expect(chartMaterial).toHaveValue("");
+    const [chartId] = await chartMaterial.selectOption({ index: 1 });
+    await ratings.click();
+    await expect(ratingMaterial).toHaveValue("");
+    const [ratingId] = await ratingMaterial.selectOption({ index: 1 });
+
+    await charts.click();
+    await expect(chartMaterial).toHaveValue(chartId);
+    await ratings.click();
+    await expect(ratingMaterial).toHaveValue(ratingId);
+    await ratingMaterial.selectOption("");
+    await charts.click();
+    await ratings.click();
+    await expect(ratingMaterial).toHaveValue("");
+
+    await ratingMaterial.selectOption(ratingId);
+    await page.getByRole("button", { name: "Logout" }).click();
+    await login(page);
+    await charts.click();
+    await expect(chartMaterial).toHaveValue("");
+    await ratings.click();
+    await expect(ratingMaterial).toHaveValue("");
+  });
+
   test("import completes and appears in bounded history", async ({ page }) => {
     await login(page);
     await page.getByRole("button", { name: "Open settings" }).click();

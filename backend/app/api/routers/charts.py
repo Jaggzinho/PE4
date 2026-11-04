@@ -98,7 +98,10 @@ def charts_panels(
                 title=panel.title,
                 unit=panel.unit,
                 traces=[
-                    PanelTraceOut(name=trace.name, x=trace.x, y=trace.y, kind=trace.kind)
+                    PanelTraceOut(
+                        name=trace.name, x=trace.x, y=trace.y, kind=trace.kind,
+                        measured_x=trace.measured_x, measured_y=trace.measured_y,
+                    )
                     for trace in panel.traces
                 ],
             )

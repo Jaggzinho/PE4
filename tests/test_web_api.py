@@ -151,6 +151,10 @@ def test_material_search_and_charts(tmp_path):
     assert panels["material_id"] == mid
     assert len(panels["panels"]) == 6
     assert all("traces" in p for p in panels["panels"])
+    for panel in panels["panels"]:
+        series = panel["traces"][0]
+        assert series["measured_x"] == ["2026-01-02"]
+        assert series["measured_y"] == series["y"]
 
 
 def test_material_search_includes_imported_component_defaults(tmp_path):

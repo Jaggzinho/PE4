@@ -4,7 +4,7 @@ import type { ApiId } from "./client";
 export type ChartsResponse = { material_id: ApiId; date_from: string | null; date_to: string | null; traces: { name: string; x: string[]; y: number[] }[] };
 export type ChartsTolerancePct = { warn_pct: number | null; alarm_pct: number | null };
 export type ChartsConfig = { tolerance_pct: ChartsTolerancePct; fixed_properties: [ApiId | null, string, string][]; defaults: Record<string, boolean> };
-export type PanelTrace = { name: string; x: string[]; y: number[]; kind: string };
+export type PanelTrace = { name: string; x: string[]; y: number[]; kind: string; measured_x: string[]; measured_y: number[] };
 export type ChartPanel = { property_id: ApiId | null; title: string; unit?: string | null; traces: PanelTrace[] };
 export type ChartsPanels = { material_id: ApiId; date_from: string | null; date_to: string | null; panels: ChartPanel[] };
 

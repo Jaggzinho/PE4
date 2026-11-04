@@ -1,8 +1,10 @@
 import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
+import type { Data } from "plotly.js";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
+import { useMaterialSelection } from "../features/useMaterialSelection";
 import { chartsPanels, searchMaterials, type ChartPanel, type ChartsPanels, type Material } from "../api";
 import { chartTheme, useTheme } from "../theme";
 
@@ -34,15 +36,14 @@ function panelDash(kind: string): "solid" | "dash" | "dot" {
 export default function ChartsPage() {
   const { theme } = useTheme();
   const colors = chartTheme(theme);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const materialId = searchParams.get("material_id") || "";
+  const { materialId, searchParams, setSearchParams } = useMaterialSelection("charts");
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || todayIso();
   const [materials, setMaterials] = useState<Material[]>([]);
 
   function setSelection(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value);
+    if (value || key === "material_id") next.set(key, value);
     else next.delete(key);
     setSearchParams(next);
   }
@@ -57,6 +58,7 @@ export default function ChartsPage() {
 
   const [hoverX, setHoverX] = useState<string | null>(null);
   const [xRange, setXRange] = useState<XRange>(null);
+  const [hiddenTraces, setHiddenTraces] = useState<Set<string>>(() => new Set());
   const relayoutGuard = useRef(false);
 
   useEffect(() => {
@@ -85,6 +87,24 @@ export default function ChartsPage() {
   }, [materialId, dateFrom, dateTo, smooth, avg, tolerances]);
 
   const panels: ChartPanel[] = useMemo(() => data?.panels || [], [data]);
+  const legendTraces = useMemo(() => {
+    const traces = new Map<string, ChartPanel["traces"][number]>();
+    for (const panel of panels) {
+      for (const trace of panel.traces) {
+        traces.set(`${trace.kind}:${trace.name}`, trace);
+      }
+    }
+    return [...traces.entries()];
+  }, [panels]);
+
+  function toggleTrace(key: string) {
+    setHiddenTraces((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function sharedLayout(panel: ChartPanel) {
     const shapes: any[] = [];
@@ -114,7 +134,7 @@ export default function ChartsPage() {
         range: xRange ? [xRange.from, xRange.to] : undefined,
       },
       yaxis: { gridcolor: colors.grid },
-      legend: { orientation: "h" as const },
+      showlegend: false,
       margin: { l: 50, r: 20, t: 20, b: 40 },
       shapes,
       title: { text: panel.title, font: { size: 13 } },
@@ -122,15 +142,28 @@ export default function ChartsPage() {
   }
 
   function plotData(panel: ChartPanel) {
-    return (panel.traces || []).map((t) => ({
-      type: "scatter" as const,
-      mode: "lines" as const,
-      name: t.name,
-      x: t.x,
-      y: t.y,
-      line: { color: panelColor(t.kind, colors.average), dash: panelDash(t.kind), width: t.kind === "series" ? 2 : 1.5 },
-      hoverinfo: "x+y+name",
-    }));
+    return (panel.traces || []).flatMap<Data>((t) => {
+      const visible = hiddenTraces.has(`${t.kind}:${t.name}`) ? "legendonly" as const : true;
+      const lineTrace = {
+        type: "scatter" as const,
+        mode: "lines" as const,
+        name: t.name,
+        visible,
+        x: t.x,
+        y: t.y,
+        line: { color: panelColor(t.kind, colors.average), dash: panelDash(t.kind), width: t.kind === "series" ? 2 : 1.5 },
+        marker: { color: panelColor(t.kind, colors.average), size: 6, symbol: "circle" as const },
+        hoverinfo: t.kind === "series" ? "skip" as const : "x+y+name" as const,
+      };
+      if (t.kind !== "series") return [lineTrace];
+      return [lineTrace, {
+        ...lineTrace,
+        mode: "markers" as const,
+        x: t.measured_x,
+        y: t.measured_y,
+        hoverinfo: "x+y+name" as const,
+      }];
+    });
   }
 
   function onHover(ev: any) {
@@ -225,9 +258,26 @@ export default function ChartsPage() {
           ))}
         </div>
       )}
-      <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-        Hover sync is enabled across panels; zoom/pan sync shares the x-range across all charts.
-      </div>
+      {!!materialId && legendTraces.length > 0 && (
+        <div role="group" aria-label="Chart legend" style={{ marginTop: 10, fontSize: 12, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px 20px" }}>
+          {legendTraces.map(([key, trace]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={!hiddenTraces.has(key)}
+              title={`Show or hide ${trace.name} across all charts`}
+              onClick={() => toggleTrace(key)}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "4px 6px", border: 0, background: "transparent", color: colors.text, font: "inherit", cursor: "pointer", opacity: hiddenTraces.has(key) ? 0.45 : 1 }}
+            >
+              <svg width="32" height="12" aria-hidden="true">
+                <line x1="1" y1="6" x2="31" y2="6" stroke={panelColor(trace.kind, colors.average)} strokeWidth={trace.kind === "series" ? 2 : 1.5} strokeDasharray={panelDash(trace.kind) === "dash" ? "9 9" : panelDash(trace.kind) === "dot" ? "3 3" : undefined} />
+                {trace.kind === "series" && <circle cx="16" cy="6" r="3" fill={panelColor(trace.kind, colors.average)} />}
+              </svg>
+              {trace.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -36,6 +36,8 @@ class PanelTraceOut(BaseModel):
     x: list[str]
     y: list[float]
     kind: str = "series"
+    measured_x: list[str] = Field(default_factory=list)
+    measured_y: list[float] = Field(default_factory=list)
 
 
 class ChartPanelOut(BaseModel):
