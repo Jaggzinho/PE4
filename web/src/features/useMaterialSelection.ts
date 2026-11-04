@@ -2,21 +2,18 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { environmentStorageKey } from "../api/client";
 
-type MaterialPage = "charts" | "ratings";
-
-function storageKey(page: MaterialPage) {
-  return environmentStorageKey(`${page}.material_id`);
+function storageKey() {
+  return environmentStorageKey("material_id");
 }
 
 export function clearMaterialSelections() {
-  sessionStorage.removeItem(storageKey("charts"));
-  sessionStorage.removeItem(storageKey("ratings"));
+  sessionStorage.removeItem(storageKey());
 }
 
-export function useMaterialSelection(page: MaterialPage) {
+export function useMaterialSelection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const materialId = searchParams.get("material_id");
-  const key = storageKey(page);
+  const key = storageKey();
 
   useEffect(() => {
     if (materialId !== null) {

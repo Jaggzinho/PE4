@@ -315,6 +315,18 @@ select.input optgroup {
   border-spacing: 0;
 }
 
+.lots-results-table .ast-ok {
+  color: #55d68b;
+}
+
+:root[data-theme="light"] .lots-results-table .ast-ok {
+  color: #14783d;
+}
+
+.lots-results-table .ast-not-ok {
+  color: var(--danger);
+}
+
 .lots-results-table .lots-request-column {
   min-width: 115px;
 }

@@ -71,7 +71,7 @@ function RatingGauge({ title, value }: { title: string; value: number | null }) 
 export default function RatingsPage() {
   const { theme } = useTheme();
   const colors = chartTheme(theme);
-  const { materialId, searchParams, setSearchParams } = useMaterialSelection("ratings");
+  const { materialId, searchParams, setSearchParams } = useMaterialSelection();
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || "";
   const [smooth, setSmooth] = useState(true);

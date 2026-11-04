@@ -36,7 +36,7 @@ function panelDash(kind: string): "solid" | "dash" | "dot" {
 export default function ChartsPage() {
   const { theme } = useTheme();
   const colors = chartTheme(theme);
-  const { materialId, searchParams, setSearchParams } = useMaterialSelection("charts");
+  const { materialId, searchParams, setSearchParams } = useMaterialSelection();
   const dateFrom = searchParams.get("date_from") || "";
   const dateTo = searchParams.get("date_to") || todayIso();
   const [materials, setMaterials] = useState<Material[]>([]);

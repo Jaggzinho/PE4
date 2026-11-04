@@ -75,31 +75,41 @@ test.describe.serial("built PE3 workflows", () => {
     await expect(page).toHaveURL(/\/calendar/);
   });
 
-  test("Charts and Ratings remember material choices within a login session", async ({ page }) => {
+  test("Lots, Charts, and Ratings share a material within a login session", async ({ page }) => {
     await login(page);
     const nav = page.locator(".nav");
     const charts = nav.getByRole("link", { name: "Charts", exact: true });
     const ratings = nav.getByRole("link", { name: "Ratings", exact: true });
+    const lots = nav.getByRole("link", { name: "Lots / results", exact: true });
+    const lotMaterial = page.getByLabel("Filter by material", { exact: true });
     const chartMaterial = page.getByLabel("Chart material");
     const ratingMaterial = page.getByRole("combobox", { name: "Material", exact: true });
 
+    await lots.click();
+    await expect(lotMaterial).toHaveValue("");
+    const [materialId] = await lotMaterial.selectOption({ index: 1 });
+    await charts.click();
+    await expect(chartMaterial).toHaveValue(materialId);
+    await ratings.click();
+    await expect(ratingMaterial).toHaveValue(materialId);
+    await page.reload();
+    await expect(ratingMaterial).toHaveValue(materialId);
+
+    await ratingMaterial.selectOption("");
+    await lots.click();
+    await expect(lotMaterial).toHaveValue("");
     await charts.click();
     await expect(chartMaterial).toHaveValue("");
-    const [chartId] = await chartMaterial.selectOption({ index: 1 });
-    await ratings.click();
-    await expect(ratingMaterial).toHaveValue("");
-    const [ratingId] = await ratingMaterial.selectOption({ index: 1 });
-
-    await charts.click();
-    await expect(chartMaterial).toHaveValue(chartId);
-    await ratings.click();
-    await expect(ratingMaterial).toHaveValue(ratingId);
-    await ratingMaterial.selectOption("");
-    await charts.click();
+    await chartMaterial.selectOption(materialId);
+    await lots.click();
+    await expect(lotMaterial).toHaveValue(materialId);
+    await lotMaterial.selectOption("");
     await ratings.click();
     await expect(ratingMaterial).toHaveValue("");
 
-    await ratingMaterial.selectOption(ratingId);
+    await ratingMaterial.selectOption(materialId);
+    await charts.click();
+    await expect(chartMaterial).toHaveValue(materialId);
     await page.getByRole("button", { name: "Logout" }).click();
     await login(page);
     await charts.click();

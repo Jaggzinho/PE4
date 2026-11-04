@@ -2,7 +2,8 @@ import { environmentStorageKey } from "../api/client";
 import { formatDate } from "../dateFormat";
 import { DateInput } from "../components/DateInput";
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useMaterialSelection } from "../features/useMaterialSelection";
 import {
   createLot,
   deleteLot,
@@ -23,6 +24,7 @@ import {
 } from "../api";
 
 const COMPONENT_TYPES = ["ISO", "POL", "CAT", "ADD1", "ADD2", "ADD3", "ADD4", "EXT"] as const;
+const AST_RESISTIVITY_LIMIT = 1_000_000_000;
 
 type QcSortKey = "durezza" | "carico_rottura" | "allungamento" | "lacerazione_ba" | "lacerazione_ca" | "abrasione" | "resistivita_superficiale";
 type ComponentFilterKey = "iso" | "pol" | "cat" | "add1" | "add2";
@@ -53,6 +55,18 @@ const COLUMN_DEFS: Array<{ key: ColumnKey; label: string }> = [
 ];
 const COLUMN_STORAGE_KEY = "pe3.lots.visible-columns";
 const CURRENT_COLUMN_STORAGE_KEY = `${COLUMN_STORAGE_KEY}.v2`;
+
+function AstConformityCell({ resistivity }: { resistivity: LotsRow["resistivita_superficiale"] }) {
+  const reading = resistivity?.trim();
+  const value = reading ? Number(reading.replace(",", ".")) : NaN;
+  if (!Number.isFinite(value)) {
+    return <td><strong className="muted">-</strong></td>;
+  }
+  if (value >= AST_RESISTIVITY_LIMIT) {
+    return <td><strong className="ast-not-ok">NOT OK</strong></td>;
+  }
+  return <td><strong className="ast-ok">OK</strong></td>;
+}
 
 function SortHeader({ label, sortKey, current, direction, onSort, className }: {
   label: string;
@@ -114,8 +128,7 @@ function withMaterialDefaults(upsert: LotUpsert, material?: Material): LotUpsert
 
 export default function LotsPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const materialId = searchParams.get("material_id") || "";
+  const { materialId, searchParams, setSearchParams } = useMaterialSelection();
   const selectedTestId = searchParams.get("test_id") || "";
   const rawPage = Number(searchParams.get("page") || 1);
   const page = Number.isFinite(rawPage) ? Math.max(1, Math.floor(rawPage)) : 1;
@@ -167,7 +180,7 @@ export default function LotsPage() {
 
   function setSelection(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
-    if (value) next.set(key, value);
+    if (value || key === "material_id") next.set(key, value);
     else next.delete(key);
     if (key !== "page") next.delete("page");
     setSearchParams(next);
@@ -243,7 +256,8 @@ export default function LotsPage() {
 
   function clearBrowseFilters() {
     const next = new URLSearchParams(searchParams);
-    ["material_id", "q", "date_field", "date_from", "date_to", "status", "include_deleted", "sort_by", "sort_dir", "page", "iso", "pol", "cat", "add1", "add2", "qc_field", "qc_min", "qc_max"].forEach((key) => next.delete(key));
+    next.set("material_id", "");
+    ["q", "date_field", "date_from", "date_to", "status", "include_deleted", "sort_by", "sort_dir", "page", "iso", "pol", "cat", "add1", "add2", "qc_field", "qc_min", "qc_max"].forEach((key) => next.delete(key));
     setSearchParams(next);
   }
 
@@ -345,7 +359,10 @@ export default function LotsPage() {
 
   function clearFilter(keys: string[]) {
     const next = new URLSearchParams(searchParams);
-    keys.forEach((key) => next.delete(key));
+    keys.forEach((key) => {
+      if (key === "material_id") next.set(key, "");
+      else next.delete(key);
+    });
     next.delete("page");
     setSearchParams(next);
   }
@@ -474,6 +491,7 @@ export default function LotsPage() {
               {QC_FIELDS.filter((f) => visibleColumns.has(f.key)).map((f) => (
                 <SortHeader key={f.key} label={f.label} sortKey={f.key} current={sortBy} direction={sortDir} onSort={changeSort} />
               ))}
+              {visibleColumns.has("resistivita_superficiale") && <th scope="col">Conformità AST</th>}
               <th className="lots-actions" scope="col">Actions</th>
             </tr>
           </thead>
@@ -498,6 +516,7 @@ export default function LotsPage() {
                 {visibleColumns.has("lacerazione_ca") && <td>{r.lacerazione_ca || "—"}</td>}
                 {visibleColumns.has("abrasione") && <td>{r.abrasione || "—"}</td>}
                 {visibleColumns.has("resistivita_superficiale") && <td>{r.resistivita_superficiale || "—"}</td>}
+                {visibleColumns.has("resistivita_superficiale") && <AstConformityCell resistivity={r.resistivita_superficiale} />}
                 <td className="lots-actions">
                   <button className="btn" disabled={busy} onClick={() => setSelection("test_id", r.test_id)}>
                     View
@@ -510,7 +529,7 @@ export default function LotsPage() {
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={visibleColumns.size + 1} className="muted">
+                <td colSpan={visibleColumns.size + (visibleColumns.has("resistivita_superficiale") ? 2 : 1)} className="muted">
                   No data
                 </td>
               </tr>
