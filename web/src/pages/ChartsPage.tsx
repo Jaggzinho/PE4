@@ -135,7 +135,7 @@ export default function ChartsPage() {
       },
       yaxis: { gridcolor: colors.grid },
       showlegend: false,
-      margin: { l: 50, r: 20, t: 20, b: 40 },
+      margin: { l: 50, r: 20, t: 20, b: 65 },
       shapes,
       title: { text: panel.title, font: { size: 13 } },
     };
@@ -248,7 +248,7 @@ export default function ChartsPage() {
               <Plot
                 data={plotData(p) as any}
                 layout={sharedLayout(p) as any}
-                style={{ width: "100%", height: "260px" }}
+                style={{ width: "100%", height: "320px" }}
                 config={{ displaylogo: false, responsive: true }}
                 onHover={onHover as any}
                 onUnhover={onUnhover as any}

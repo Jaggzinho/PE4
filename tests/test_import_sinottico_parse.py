@@ -25,11 +25,15 @@ class TestImportSinotticoParse(unittest.TestCase):
         ws_sin["C2"] = "CODICE"
         ws_sin["D2"] = "DESCRIZIONE"
         ws_sin["G2"] = "CODICE MATERIALE"
-        ws_sin["A3"] = "X"
+        ws_sin["A4"] = "X"
         ws_sin["B3"] = "MAC 1"
         ws_sin["C3"] = "MAT001"
         ws_sin["D3"] = "Material 001"
         ws_sin["G3"] = "MAT001"
+        ws_sin["A5"] = "Material 001"
+        ws_sin["B5"] = "MAC 1"
+        ws_sin["C5"] = "MAT001"
+        ws_sin["D6"] = "Material 001"
 
         ws_mat = wb.create_sheet("materiali")
         ws_mat.append(["codice mat", "desc materiale", "cod lastrina", "desc last"])
@@ -52,11 +56,22 @@ class TestImportSinotticoParse(unittest.TestCase):
         con = duckdb.connect(str(dbp))
         apply_migrations(con)
         res = import_workbook(con, tmp, lambda *_: None)
-        self.assertEqual(res.sinottico_items, 1)
+        self.assertEqual(res.sinottico_items, 2)
         cnt = con.execute("SELECT COUNT(*) FROM sinottico_items").fetchone()[0]
-        self.assertEqual(int(cnt), 1)
+        self.assertEqual(int(cnt), 2)
         mid = con.execute("SELECT material_id FROM sinottico_items WHERE excel_code='MAT001'").fetchone()[0]
         self.assertIsNotNone(mid)
+        previous_rows = con.execute("SELECT * FROM sinottico_items ORDER BY sort_order").fetchall()
+        wb["SINOTTICO"].delete_rows(3, 4)
+        wb.save(tmp)
+        messages = []
+        res = import_workbook(con, tmp, messages.append)
+        self.assertEqual(res.sinottico_items, 0)
+        self.assertEqual(
+            con.execute("SELECT * FROM sinottico_items ORDER BY sort_order").fetchall(),
+            previous_rows,
+        )
+        self.assertTrue(any("Existing Sinottico rows were kept" in message for message in messages))
         con.close()
 
 
