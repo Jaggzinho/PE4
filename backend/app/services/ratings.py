@@ -26,6 +26,7 @@ class RatingService:
         material_id: int,
         date_from: date | None,
         date_to: date | None,
+        open_ended: bool = False,
     ) -> RatingOverview:
         material = get_material(con, material_id=int(material_id))
         visible = get_visible_material_ids(con, subsidiary_id=subsidiary_id)
@@ -36,14 +37,14 @@ class RatingService:
             raise InvalidRatingDateRangeError("date_from must be on or before date_to")
 
         date_min, date_max = fetch_date_bounds(con, material_id=int(material_id))
-        effective_from = date_from if date_from is not None else date_min
-        effective_to = date_to if date_to is not None else date_max
+        effective_from = date_from if date_from is not None or open_ended else date_min
+        effective_to = date_to if date_to is not None or open_ended else date_max
         if effective_from is not None and effective_to is not None and effective_from > effective_to:
             raise InvalidRatingDateRangeError("date_from must be on or before date_to")
         configured = has_rating_configuration(con, material_id=int(material_id))
 
         raw_points = []
-        if configured and effective_from is not None and effective_to is not None:
+        if configured and (open_ended or (effective_from is not None and effective_to is not None)):
             raw_points = fetch_rating_series(
                 con,
                 material_id=int(material_id),

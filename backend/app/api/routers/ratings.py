@@ -22,6 +22,7 @@ def ratings_overview(
     material_id: int,
     date_from: date | None = None,
     date_to: date | None = None,
+    open_ended: bool = False,
     con=Depends(get_db),
     state=Depends(get_state),
     _session=Depends(get_session),
@@ -33,6 +34,7 @@ def ratings_overview(
             material_id=int(material_id),
             date_from=date_from,
             date_to=date_to,
+            open_ended=open_ended,
         )
     except RatingMaterialNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Material not found")

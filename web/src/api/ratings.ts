@@ -8,9 +8,10 @@ export type RatingOverview = {
   latest_rating: number | null; average_rating: number | null;
 };
 
-export function ratingsOverview(materialId: ApiId, dateFrom?: string, dateTo?: string): Promise<RatingOverview> {
+export function ratingsOverview(materialId: ApiId, dateFrom?: string, dateTo?: string, openEnded = false): Promise<RatingOverview> {
   const query = new URLSearchParams({ material_id: String(materialId) });
   if (dateFrom) query.set("date_from", dateFrom);
   if (dateTo) query.set("date_to", dateTo);
+  if (openEnded) query.set("open_ended", "true");
   return apiFetch(`/api/ratings?${query.toString()}`);
 }

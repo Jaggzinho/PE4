@@ -1,11 +1,14 @@
 import { DateInput } from "../components/DateInput";
 import Plot from "react-plotly.js";
 import type { Data } from "plotly.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { qcHref } from "../features/qcLinks";
-import { useMaterialSelection } from "../features/useMaterialSelection";
-import { chartsPanels, searchMaterials, type ChartPanel, type ChartsPanels, type Material } from "../api";
+import { useComparison, ComparisonControls, ComparisonLegend, materialCode, materialColors, toggleMaterial } from "../features/materialComparison";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { getEnvironmentId } from "../api/client";
+import { ErrorNotice } from "../components/AsyncState";
+import { chartsPanels, searchMaterials, type ChartPanel } from "../api";
 import { chartTheme, useTheme } from "../theme";
 
 function todayIso(): string {
@@ -36,14 +39,19 @@ function panelDash(kind: string): "solid" | "dash" | "dot" {
 export default function ChartsPage() {
   const { theme } = useTheme();
   const colors = chartTheme(theme);
-  const { materialId, searchParams, setSearchParams } = useMaterialSelection();
+  const comparison = useComparison();
+  const { materialId, searchParams, setSearchParams, ids, extras, comparing } = comparison;
   const dateFrom = searchParams.get("date_from") || "";
-  const dateTo = searchParams.get("date_to") || todayIso();
-  const [materials, setMaterials] = useState<Material[]>([]);
+  const dateTo = searchParams.get("date_to") || (comparing ? "" : todayIso());
+  const materialsQuery = useQuery({
+    queryKey: [getEnvironmentId(), "materials", "active"],
+    queryFn: () => searchMaterials(""),
+  });
+  const materials = materialsQuery.data ?? [];
 
   function setSelection(key: string, value: string) {
     const next = new URLSearchParams(searchParams);
-    if (value || key === "material_id") next.set(key, value);
+    if (value || (key === "date_to" && comparing)) next.set(key, value);
     else next.delete(key);
     setSearchParams(next);
   }
@@ -52,42 +60,38 @@ export default function ChartsPage() {
   const [avg, setAvg] = useState(true);
   const [tolerances, setTolerances] = useState(true);
 
-  const [data, setData] = useState<ChartsPanels | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
   const [hoverX, setHoverX] = useState<string | null>(null);
   const [xRange, setXRange] = useState<XRange>(null);
   const [hiddenTraces, setHiddenTraces] = useState<Set<string>>(() => new Set());
   const relayoutGuard = useRef(false);
 
-  useEffect(() => {
-    searchMaterials("").then(setMaterials).catch(() => setMaterials([]));
-  }, []);
-
-  useEffect(() => {
-    if (!materialId) return;
-    let alive = true;
-    setBusy(true);
-    setErr(null);
-    chartsPanels({
-      material_id: materialId,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-      smooth,
-      avg,
-      tolerances,
-    })
-      .then((r) => alive && setData(r))
-      .catch((e) => alive && setErr(String(e)))
-      .finally(() => alive && setBusy(false));
-    return () => {
-      alive = false;
-    };
-  }, [materialId, dateFrom, dateTo, smooth, avg, tolerances]);
-
-  const panels: ChartPanel[] = useMemo(() => data?.panels || [], [data]);
-  const legendTraces = useMemo(() => {
+  const [hiddenMaterials, setHiddenMaterials] = useState<Set<string>>(() => new Set());
+  const guides = tolerances && !comparing;
+  const queries = useQueries({ queries: ids.map(id => ({
+    queryKey: [getEnvironmentId(), "chart-panels", id, dateFrom, dateTo, smooth, avg, guides],
+    queryFn: () => chartsPanels({
+      material_id: id, date_from: dateFrom || undefined, date_to: dateTo || undefined,
+      smooth, avg, tolerances: guides,
+    }),
+  })) });
+  const busy = queries.some(query => query.isFetching);
+  const entries = ids.map((id, index) => ({
+    id, name: materialCode(materials, id), color: materialColors[index], query: queries[index],
+  }));
+  const plotted = entries.filter(({ query }) => query.data?.panels.some(panel =>
+    panel.traces.some(trace => trace.kind === "series" && trace.x.length > 0)));
+  const panelsByKey = new Map<string, ChartPanel>();
+  function panelKey(panel: ChartPanel) {
+    return JSON.stringify([panel.property_id, panel.unit ?? "", panel.property_id == null ? panel.title : ""]);
+  }
+  for (const entry of entries) {
+    for (const panel of entry.query.data?.panels ?? []) {
+      const key = panelKey(panel);
+      if (!panelsByKey.has(key)) panelsByKey.set(key, panel);
+    }
+  }
+  const panels = [...panelsByKey.values()];
+  const legendTraces = (() => {
     const traces = new Map<string, ChartPanel["traces"][number]>();
     for (const panel of panels) {
       for (const trace of panel.traces) {
@@ -95,7 +99,7 @@ export default function ChartsPage() {
       }
     }
     return [...traces.entries()];
-  }, [panels]);
+  })();
 
   function toggleTrace(key: string) {
     setHiddenTraces((current) => {
@@ -141,18 +145,20 @@ export default function ChartsPage() {
     };
   }
 
-  function plotData(panel: ChartPanel) {
-    return (panel.traces || []).flatMap<Data>((t) => {
-      const visible = hiddenTraces.has(`${t.kind}:${t.name}`) ? "legendonly" as const : true;
+  function plotData(panel: ChartPanel, material?: typeof entries[number]) {
+    const color = (kind: string) => material?.color ?? panelColor(kind, colors.average);
+    return panel.traces.flatMap<Data>((t) => {
+      if (material && (!t.x.length || (t.kind !== "series" && t.kind !== "avg"))) return [];
+      const visible = (material ? hiddenMaterials.has(material.id) : hiddenTraces.has(`${t.kind}:${t.name}`)) ? "legendonly" as const : true;
       const lineTrace = {
         type: "scatter" as const,
         mode: "lines" as const,
-        name: t.name,
+        name: material ? (t.kind === "avg" ? `${material.name} — Average` : material.name) : t.name,
         visible,
         x: t.x,
         y: t.y,
-        line: { color: panelColor(t.kind, colors.average), dash: panelDash(t.kind), width: t.kind === "series" ? 2 : 1.5 },
-        marker: { color: panelColor(t.kind, colors.average), size: 6, symbol: "circle" as const },
+        line: { color: color(t.kind), dash: panelDash(t.kind), width: t.kind === "series" ? 2 : 1.5 },
+        marker: { color: color(t.kind), size: 6, symbol: "circle" as const },
         hoverinfo: t.kind === "series" ? "skip" as const : "x+y+name" as const,
       };
       if (t.kind !== "series") return [lineTrace];
@@ -196,7 +202,7 @@ export default function ChartsPage() {
     <div className="card">
       <h2 className="title">Charts</h2>
       <div className="row" style={{ marginBottom: 12 }}>
-        <select className="input" aria-label="Chart material" value={materialId} onChange={(e) => setSelection("material_id", e.target.value)}>
+        <select className="input" aria-label="Chart material" value={materialId} onChange={(e) => comparison.update(e.target.value, extras)}>
           <option value="">Select material…</option>
           {materials
             .filter((m) => m.active)
@@ -206,6 +212,7 @@ export default function ChartsPage() {
               </option>
             ))}
         </select>
+        <ComparisonControls selection={comparison} materials={materials} initialTo={dateTo} />
         <DateInput className="input" aria-label="Chart from date"  value={dateFrom} onValueChange={(iso) => setSelection("date_from", iso)} />
         <DateInput className="input" aria-label="Chart to date"  value={dateTo} onValueChange={(iso) => setSelection("date_to", iso)} />
         <label className="pill" style={{ cursor: "pointer" }}>
@@ -215,7 +222,7 @@ export default function ChartsPage() {
           <input style={{ marginRight: 6 }} type="checkbox" checked={avg} onChange={(e) => setAvg(e.target.checked)} /> Average
         </label>
         <label className="pill" style={{ cursor: "pointer" }}>
-          <input style={{ marginRight: 6 }} type="checkbox" checked={tolerances} onChange={(e) => setTolerances(e.target.checked)} /> Tolerances
+          <input style={{ marginRight: 6 }} type="checkbox" checked={guides} disabled={comparing} onChange={(e) => setTolerances(e.target.checked)} /> Tolerances
         </label>
         <span className="pill">{busy ? "Loading…" : "Plotly"}</span>
         <button className="btn" disabled={!xRange} onClick={() => setXRange(null)}>
@@ -225,14 +232,15 @@ export default function ChartsPage() {
       {materialId && <div className="row" style={{ marginBottom: 10 }}>
         <Link to={qcHref("sinottico", { materialId })}>Sinottico</Link>
         <Link to={qcHref("lots", { materialId })}>Lots</Link>
-        <Link to={qcHref("ratings", { materialId })}>Ratings</Link>
+        <Link to={comparison.link("ratings", dateTo)}>Ratings</Link>
         <Link to={qcHref("calendar", { materialId })}>Calendar</Link>
       </div>}
-      {err && (
-        <div className="pill" style={{ color: "var(--danger)" }}>
-          {err}
-        </div>
-      )}
+      {materialsQuery.error && <ErrorNotice error={materialsQuery.error} />}
+      {entries.map(({ id, name, query }) => query.error
+        ? <div key={id}><strong>{name}</strong><ErrorNotice error={query.error} /></div>
+        : comparing && !plotted.some(entry => entry.id === id)
+          ? <div key={id} className="muted">{name} — {query.isPending ? "Loading…" : "No measurements in this date range"}</div>
+          : null)}
       {!materialId && <div className="muted">Pick a material to load chart panels.</div>}
 
       {!!materialId && (
@@ -246,7 +254,9 @@ export default function ChartsPage() {
           {panels.map((p, idx) => (
             <div key={`${p.title}-${idx}`} className="card" style={{ padding: 8 }}>
               <Plot
-                data={plotData(p) as any}
+                data={comparing ? plotted.flatMap(entry =>
+                  (entry.query.data?.panels ?? []).filter(panel => panelKey(panel) === panelKey(p))
+                    .flatMap(panel => plotData(panel, entry))) : plotData(p)}
                 layout={sharedLayout(p) as any}
                 style={{ width: "100%", height: "320px" }}
                 config={{ displaylogo: false, responsive: true }}
@@ -258,7 +268,9 @@ export default function ChartsPage() {
           ))}
         </div>
       )}
-      {!!materialId && legendTraces.length > 0 && (
+      {comparing && <ComparisonLegend items={plotted} materials={materials} hidden={hiddenMaterials}
+        toggle={id => setHiddenMaterials(current => toggleMaterial(current, id))} />}
+      {!comparing && !!materialId && legendTraces.length > 0 && (
         <div role="group" aria-label="Chart legend" style={{ marginTop: 10, fontSize: 12, display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "8px 20px" }}>
           {legendTraces.map(([key, trace]) => (
             <button

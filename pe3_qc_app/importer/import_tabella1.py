@@ -43,11 +43,12 @@ def import_tabella1(con, wb, progress) -> tuple[int, int, int]:
 
     # Composition columns (3 per type)
     comp_cols: dict[str, tuple[int | None, int | None, int | None]] = {}
-    for t in ("ISO", "POL", "CAT", "ADD1", "ADD2"):
+    # The numbered template places the extender between POL and CAT.
+    for t, suffix in (("ISO", ""), ("POL", "2"), ("CAT", "4"), ("ADD1", "5"), ("ADD2", "6")):
         comp_cols[t] = (
-            find_col(f"CODICE {t}"),
-            find_col(f"DESCRIZIONE {t}"),
-            find_col(f"LOTTO {t}"),
+            find_col(f"CODICE {t}") or find_col(f"CODICE{suffix}"),
+            find_col(f"DESCRIZIONE {t}") or find_col(f"DESCRIZIONE{suffix}"),
+            find_col(f"LOTTO {t}") or find_col(f"LOTTO{suffix}"),
         )
 
     if not c_mat:

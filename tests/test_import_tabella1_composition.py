@@ -13,6 +13,12 @@ from pe3_qc_app.importer.import_service import import_workbook
 
 class TestImportTabella1Composition(unittest.TestCase):
     def test_import_component_lots(self) -> None:
+        self._check_component_lots(numbered=False)
+
+    def test_import_component_lots_with_numbered_headers(self) -> None:
+        self._check_component_lots(numbered=True)
+
+    def _check_component_lots(self, *, numbered: bool) -> None:
         tmp = Path(tempfile.gettempdir()) / "pe3_test_tabella1_comp.xlsx"
         if tmp.exists():
             tmp.unlink()
@@ -45,6 +51,12 @@ class TestImportTabella1Composition(unittest.TestCase):
             "DATA ANALISI",
             "Durezza",
         ]
+        if numbered:
+            headers[5:20] = [
+                f"{field}{suffix}"
+                for suffix in ("", "2", "3", "4", "5", "6")
+                for field in ("CODICE", "DESCRIZIONE", "LOTTO")
+            ]
         ws.append(headers)
         ws.append(
             [
@@ -72,6 +84,10 @@ class TestImportTabella1Composition(unittest.TestCase):
                 55.2,
             ]
         )
+        if numbered:
+            ws.move_range("L2:V2", cols=3)
+            for column, value in enumerate(("EXT1", "Extender desc", "EXTLOT"), start=12):
+                ws.cell(2, column, value)
 
         from openpyxl.worksheet.table import Table
 

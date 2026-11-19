@@ -196,6 +196,28 @@ def test_ratings_overview_visibility_dates_and_summary(tmp_path, monkeypatch):
     assert hidden.json()["code"] == "not_found"
 
 
+@pytest.mark.parametrize(("bounds", "expected_dates"), [
+    ({}, ["2026-04-02", "2026-04-11", "2026-04-21"]),
+    ({"date_from": "2026-05-01"}, []),
+    ({"date_to": "2026-04-11"}, ["2026-04-02", "2026-04-11"]),
+    ({"date_from": "2026-05-01", "date_to": "2026-04-01"}, None),
+])
+def test_open_ended_rating_comparison(tmp_path, monkeypatch, bounds, expected_dates):
+    app, material_id, _ = _app_with_ratings(tmp_path, monkeypatch)
+    client = TestClient(app)
+    response = client.get("/api/ratings", headers=_viewer_headers(client), params={
+        "material_id": material_id, "open_ended": "true", **bounds,
+    })
+    if expected_dates is None:
+        assert response.status_code == 400
+        return
+    assert response.status_code == 200
+    body = response.json()
+    assert body["date_from"] == bounds.get("date_from")
+    assert body["date_to"] == bounds.get("date_to")
+    assert [point["date"] for point in body["points"]] == expected_dates
+
+
 def test_ratings_overview_reports_missing_configuration(tmp_path, monkeypatch):
     app, material_id, _hidden_material_id = _app_with_ratings(tmp_path, monkeypatch, configured=False)
     client = TestClient(app)
