@@ -96,14 +96,16 @@ class LotsService:
                 prod_date=payload.prod_date,
                 analysis_date=payload.analysis_date,
             )
-        self._save_extras(con, test_id=test_id, payload=payload)
+        self._save_extras(con, test_id=test_id, payload=payload, existing_qc=existing["qc"])
         return get_test_details(con, test_id=test_id)
 
     def delete(self, con, *, subsidiary_id: str, test_id: int) -> None:
         self.get(con, subsidiary_id=subsidiary_id, test_id=test_id)
         hard_delete_test(con, test_id=test_id)
 
-    def _save_extras(self, con, *, test_id: int, payload) -> None:
+    def _save_extras(
+        self, con, *, test_id: int, payload, existing_qc: dict[str, str | None] | None = None,
+    ) -> None:
         components = payload.components or {}
         for type_name in ("ISO", "POL", "CAT", "ADD1", "ADD2", "ADD3", "ADD4", "EXT"):
             component = components.get(type_name) or None
@@ -118,4 +120,9 @@ class LotsService:
 
         qc = payload.qc or {}
         for field, label in QC_FIELDS:
-            upsert_measurement(con, test_id=test_id, property_name=label, value=qc.get(field))
+            if field not in qc:
+                continue
+            value = (qc[field] or "").strip() or None
+            if existing_qc is not None and value == existing_qc[field]:
+                continue
+            upsert_measurement(con, test_id=test_id, property_name=label, value=value)

@@ -309,6 +309,51 @@ def test_lots_crud(tmp_path):
     assert len(after) == len(before)
 
 
+def test_lot_resistivity_reads_legacy_property_and_saves_only_the_edited_lot(tmp_path):
+    client = _client(tmp_path)
+    field = "resistivita_superficiale"
+    with duckdb.connect(str(tmp_path / "test.duckdb")) as con:
+        legacy_id, canonical_id = 30, 31
+        con.executemany(
+            "INSERT INTO properties(property_id, name, data_type, active) VALUES (?, ?, 'num', TRUE)",
+            [(legacy_id, "Resistività superficiale"), (canonical_id, "Resistività Superficiale")],
+        )
+        test_id = con.execute("SELECT test_id FROM tests").fetchone()[0]
+        con.execute(
+            "INSERT INTO measurements(measurement_id, test_id, property_id, value_num) VALUES (?, ?, ?, ?)",
+            [new_id(), test_id, legacy_id, 900000000],
+        )
+
+    headers = {"Authorization": f"Bearer {_auth(client)}"}
+    legacy = client.get(f"/api/lots/{test_id}", headers=headers).json()
+    assert legacy["qc"][field] == "900000000.0"
+    payload = {
+        "material_id": legacy["material_id"],
+        "request_date": legacy["request_date"],
+        "qc": {field: "780000000.0"},
+    }
+    created = client.post("/api/lots", headers=headers, json=payload)
+    assert created.status_code == 200
+    new_test_id = created.json()["test_id"]
+
+    rows = client.get("/api/lots", headers=headers, params={"qc_field": field, "qc_min": 1})
+    assert rows.status_code == 200
+    assert {row["test_id"]: row[field] for row in rows.json()["items"]} == {
+        legacy["test_id"]: "900000000.0",
+        new_test_id: "780000000.0",
+    }
+    updated = client.put(f"/api/lots/{test_id}", headers=headers, json=payload)
+    assert updated.status_code == 200
+    assert updated.json()["qc"][field] == "780000000.0"
+    assert updated.json()["qc"]["durezza"] == legacy["qc"]["durezza"]
+
+    cleared = client.put(f"/api/lots/{test_id}", headers=headers, json={**payload, "qc": {field: ""}})
+    assert cleared.status_code == 200
+    assert cleared.json()["qc"][field] is None
+    other = client.get(f"/api/lots/{new_test_id}", headers=headers)
+    assert other.json()["qc"][field] == "780000000.0"
+
+
 def test_lots_rbac_blocks_readonly(tmp_path):
     client = _client(tmp_path)
     r = client.post("/api/auth/login", json={"username": "viewer", "password": "pw"})

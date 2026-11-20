@@ -136,18 +136,19 @@ def get_test_details(con, *, test_id: int) -> dict:
     prop_ids = _resolve_qc_property_ids(con)
     qc: dict[str, str | None] = {f: None for f, _l in QC_FIELDS}
     for field, _label in QC_FIELDS:
-        pid = prop_ids.get(field)
-        if pid is None:
+        ids = prop_ids[field]
+        if not ids:
             continue
         vrow = con.execute(
             """
             SELECT COALESCE(CAST(value_num AS VARCHAR), value_text)
             FROM measurements
-            WHERE test_id = ? AND property_id = ?
-            ORDER BY measurement_id DESC
+            WHERE test_id = ? AND property_id IN (SELECT unnest(?))
+              AND COALESCE(CAST(value_num AS VARCHAR), value_text) IS NOT NULL
+            ORDER BY list_position(?, property_id), measurement_id DESC
             LIMIT 1
             """,
-            [int(test_id), int(pid)],
+            [int(test_id), ids, ids],
         ).fetchone()
         if vrow is not None:
             qc[field] = _s(vrow[0])
@@ -175,7 +176,7 @@ def list_lotti_rows(
     visible_material_ids: set[int] | None = None,
 ) -> list[LottiRow] | tuple[list[LottiRow], int]:
     where = []
-    params: list[int] = []
+    params: list[object] = []
     if not include_deleted:
         where.append("t.deleted_at IS NULL")
     if visible_material_ids is not None:
@@ -193,17 +194,18 @@ def list_lotti_rows(
 
     prop_ids = _resolve_qc_property_ids(con)
     qc_selects: list[str] = []
+    qc_params: list[object] = []
     for field, _label in QC_FIELDS:
-        pid = prop_ids.get(field)
-        if pid is None:
+        ids = prop_ids[field]
+        if not ids:
             qc_selects.append(f"NULL AS {field}")
         else:
             qc_selects.append(
-                "MAX(CASE WHEN m.property_id = "
-                + str(int(pid))
-                + " THEN COALESCE(CAST(m.value_num AS VARCHAR), m.value_text) END) AS "
-                + field
+                "ANY_VALUE(COALESCE(CAST(m.value_num AS VARCHAR), m.value_text) "
+                "ORDER BY list_position(?, m.property_id), m.measurement_id DESC) "
+                f"FILTER (WHERE list_contains(?, m.property_id)) AS {field}"
             )
+            qc_params.extend([ids, ids])
 
     outer_where: list[str] = []
     outer_params: list[object] = []
@@ -315,11 +317,11 @@ def list_lotti_rows(
         ORDER BY {sort_expression} {direction} NULLS LAST, test_id DESC
         LIMIT ? OFFSET ?
     """
-    rows = con.execute(sql, [*params, *outer_params, int(limit), int(offset)]).fetchall()
+    rows = con.execute(sql, [*qc_params, *params, *outer_params, int(limit), int(offset)]).fetchall()
     total = 0
     if return_total:
         count_sql = cte_sql + f"SELECT COUNT(*) FROM lot_rows {outer_where_sql}"
-        total = int(con.execute(count_sql, [*params, *outer_params]).fetchone()[0])
+        total = int(con.execute(count_sql, [*qc_params, *params, *outer_params]).fetchone()[0])
     out: list[LottiRow] = []
     for r in rows:
         out.append(
@@ -518,11 +520,16 @@ def upsert_measurement(con, *, test_id: int, property_name: str, value: str | No
     pname = property_name.strip()
     if not pname:
         return
-    pid = _ensure_property(con, pname)
-    con.execute("DELETE FROM measurements WHERE test_id=? AND property_id=?", [int(test_id), int(pid)])
     txt = (value or "").strip()
+    ids = _matching_property_ids(con.execute("SELECT property_id, name FROM properties").fetchall(), pname)
+    if ids:
+        con.execute(
+            "DELETE FROM measurements WHERE test_id = ? AND property_id IN (SELECT unnest(?))",
+            [int(test_id), ids],
+        )
     if not txt:
         return
+    pid = ids[0] if ids else _ensure_property(con, pname)
     num = parse_float(txt)
     value_num = num
     value_text = None if num is not None else txt
@@ -550,18 +557,19 @@ def _ensure_property(con, name: str) -> int:
     return int(pid)
 
 
-def _resolve_qc_property_ids(con) -> dict[str, int | None]:
+def _resolve_qc_property_ids(con) -> dict[str, list[int]]:
     rows = con.execute("SELECT property_id, name FROM properties").fetchall()
-    by_norm: dict[str, int] = {}
-    for pid, name in rows:
-        if name is None:
-            continue
-        by_norm[_norm(str(name))] = int(pid)
+    return {field: _matching_property_ids(rows, label) for field, label in QC_FIELDS}
 
-    out: dict[str, int | None] = {}
-    for field, label in QC_FIELDS:
-        out[field] = by_norm.get(_norm(label))
-    return out
+
+def _matching_property_ids(rows, label: str) -> list[int]:
+    normalized_label = _norm(label)
+    matches = sorted(
+        (name != label, int(pid))
+        for pid, name in rows
+        if name is not None and _norm(name) == normalized_label
+    )
+    return [pid for _, pid in matches]
 
 
 def _norm(s: str) -> str:
